@@ -25,17 +25,19 @@
   * Develop API query endpoints in `apps/api-gateway` (e.g., `GET /api/tenants`, `GET /api/users`).
   * Implement basic query handlers/logic to read directly from read models (requires DB connection setup - deferring actual DB interaction).
   * Implement basic Redis caching for these query endpoints using the `Cache` port/adapter.
+* **Future Steps (Phase 1.5):**
+  * A plan for Phase 1.5 (MVP Refinement & Foundation Hardening) has been created at `doc/plans/phase-1.5-plan.md`. This phase includes robust Auth/Authz, SQLite support, Docker/Helm setup, basic Observability, and Vue/Svelte MVP implementations.
 * **Active Decisions:**
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
   * Backend Stack: Axum (Rust), Postgres, RabbitMQ, Redis.
-  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4, Headless UI.
+  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4, Headless UI. (Vue & Svelte to be implemented in Phase 1.5 for comparison).
   * Structure: Monorepo (Cargo Workspace, PNPM).
-  * Deployment: 3 Models defined (Single Executable uses In-Memory Adapters).
+  * Deployment: 3 Models defined (Single Executable uses In-Memory Adapters/SQLite, Docker Compose uses real infra, K8s uses real infra). Phase 1 includes basic Docker Compose support.
   * Serialization: Protobuf (stored as binary `bytea`).
   * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
   * Initial Setup: Platform Admin created on first run with logged one-time password.
-  * UI Components: Headless UI chosen.
+  * UI Components: Headless UI chosen for React.
   * Real-time: WebSockets included in Phase 1 MVP.
   * Migrations: `refinery` crate chosen.
 * **Key Patterns/Preferences:**
