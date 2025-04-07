@@ -1,37 +1,35 @@
 # Active Context
 
-* **Current Focus:** Phase 1 - Core MVP implementation. Building the essential features (Airline Profile, Pilot Registration, basic PIREP submission/viewing) within the established monorepo structure. Proving the core ES/CQRS loop with the chosen stack.
-* **Recent Changes (Phase 0 Completion):**
-  * Finalized core technology stack (Axum, React, Vite/SWC, Tailwind v4, Postgres, RabbitMQ, Redis, Protobuf).
-  * Set up monorepo structure (`apps/`, `libs/`) with Cargo workspace and PNPM/Biome.
-  * Created initial service/app skeletons (`api-gateway`, `core-lib`, `proto`, `web-ui`).
-  * Configured basic Protobuf build process within `libs/proto`.
-  * Set up frontend project (`web-ui`) with React, Router, Vite, SWC, and Tailwind v4.
-  * Created basic infrastructure definition (`docker-compose.infra.yml`) and Helm placeholder (`infra/helm/README.md`).
-  * Established basic CI workflow (`.github/workflows/ci.yml`).
-  * Configured basic frontend embedding (`rust-embed`) in `api-gateway`.
-* **Next Steps (Phase 1 Start):**
-  * Implement core ES/CQRS plumbing in Axum service(s) (command handling, aggregate loading/saving, event publishing).
-  * Develop initial Aggregates/Events (e.g., Airline, User/Pilot, PIREP) using Protobuf.
-  * Implement PostgreSQL Event Store logic (append, read stream, optimistic concurrency).
-  * Implement basic Projection Worker logic (consuming RabbitMQ events, updating PostgreSQL read models).
-  * Design and implement initial PostgreSQL Read Models.
-  * Develop API endpoints in Axum for core MVP features.
-  * Implement basic Redis caching and Pub/Sub notifications.
-  * Build frontend UI components for MVP features.
+* **Current Focus:** Phase 1, Step 3 - Implement Initial Command/Event Flows (Command Handlers).
+* **Recent Changes (Phase 1, Steps 1 & 2 Completion):**
+  * Defined core ES/CQRS Ports (traits) in `libs/core-lib`.
+  * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib` for testing/Model 1.
+  * Defined Protobuf messages for `Tenant`, `User` (with Roles, Auth), and `PIREP` commands/events in `libs/proto`.
+  * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib/src/domain/`.
+  * Verified `libs/core-lib` and `libs/proto` compile successfully.
+  * (Phase 0): Finalized core technology stack, set up monorepo, created skeletons, configured Protobuf build, set up frontend, created infra placeholders, basic CI, basic embedding.
+* **Next Steps (Phase 1, Step 3 Start):**
+  * Implement command handlers in `apps/api-gateway` for `RegisterUser`, `ChangePassword`, `GenerateApiKey`, `LoginUser`, `CreateTenant`.
+  * Implement basic command dispatch logic in `api-gateway`.
+  * Ensure handlers use the appropriate Ports (`Repository`, `EventPublisher`).
 * **Active Decisions:**
   * Project Name: Albatross (Finalized for now).
-  * Architecture: ES/CQRS, Microservices, Multi-tenant.
+  * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
   * Backend Stack: Axum (Rust), Postgres, RabbitMQ, Redis.
-  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4.
+  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4, Headless UI.
   * Structure: Monorepo (Cargo Workspace, PNPM).
-  * Deployment: 3 Models defined.
+  * Deployment: 3 Models defined (Single Executable uses In-Memory Adapters).
   * Serialization: Protobuf (stored as binary `bytea`).
   * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
+  * Initial Setup: Platform Admin created on first run with logged one-time password.
+  * UI Components: Headless UI chosen.
+  * Real-time: WebSockets included in Phase 1 MVP.
+  * Migrations: `refinery` crate chosen.
 * **Key Patterns/Preferences:**
   * Prioritize Open Source components and minimal vendor lock-in.
   * Aim for good Developer Experience (DX), including debugging support for microservices potentially running outside k3s.
   * Maintain clear separation between application logic and reusable infrastructure definitions.
+  * **Workflow:** Stop after completing each step in the current plan (`doc/plans/phase-1-plan.md`). Update Memory Bank (`activeContext.md`, `progress.md`) after each step completion. Ensure plan formatting uses consistent spacing (like `phase-1-plan.md`).
 * **Learnings/Insights:**
   * Analyzed trade-offs for backend/frontend frameworks, component libraries, event stores, multi-tenancy strategies, deployment costs, licensing, and repo structures.
   * Established the feasibility of the 3 deployment models with careful abstraction.

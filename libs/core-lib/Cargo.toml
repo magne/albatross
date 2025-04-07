@@ -7,3 +7,8 @@ edition = "2024"
 
 [dependencies]
 proto = { version = "0.1.0", path = "../proto" }
+async-trait = "0.1"
+thiserror = "2.0"
+dashmap = "6.1" # For InMemory adapters
+moka = { version = "0.12", features = ["future"] } # For InMemoryCache
+tokio = { version = "1", features = ["sync", "rt-multi-thread"] } # For InMemoryEventBus and tests
