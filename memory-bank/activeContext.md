@@ -1,17 +1,25 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 3 - Implement Initial Command/Event Flows (Command Handlers).
+* **Current Focus:** Phase 1, Step 4 - Implement First Projections & Notifications.
+* **Recent Changes (Phase 1, Step 3 Completion):**
+  * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler`) in `apps/api-gateway`.
+  * Implemented basic command dispatch logic: DTOs, Axum route handlers (`/api/users`, `/api/tenants`), state injection, error mapping to HTTP responses in `api-gateway`.
+  * Added necessary dependencies and error handling infrastructure to `api-gateway`.
+  * Added `From<AggregateError>` implementations to `CoreError` in `libs/core-lib`.
+  * Verified `apps/api-gateway` compiles successfully (with expected warnings for unused code).
 * **Recent Changes (Phase 1, Steps 1 & 2 Completion):**
   * Defined core ES/CQRS Ports (traits) in `libs/core-lib`.
-  * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib` for testing/Model 1.
-  * Defined Protobuf messages for `Tenant`, `User` (with Roles, Auth), and `PIREP` commands/events in `libs/proto`.
-  * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib/src/domain/`.
+  * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib`.
+  * Defined Protobuf messages for `Tenant`, `User`, and `PIREP` commands/events in `libs/proto`.
+  * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib`.
   * Verified `libs/core-lib` and `libs/proto` compile successfully.
   * (Phase 0): Finalized core technology stack, set up monorepo, created skeletons, configured Protobuf build, set up frontend, created infra placeholders, basic CI, basic embedding.
-* **Next Steps (Phase 1, Step 3 Start):**
-  * Implement command handlers in `apps/api-gateway` for `RegisterUser`, `ChangePassword`, `GenerateApiKey`, `LoginUser`, `CreateTenant`.
-  * Implement basic command dispatch logic in `api-gateway`.
-  * Ensure handlers use the appropriate Ports (`Repository`, `EventPublisher`).
+* **Next Steps (Phase 1, Step 4 Start):**
+  * Design initial Read Model schemas (PostgreSQL tables) for `tenants`, `users`.
+  * Set up `refinery` migrations for read models.
+  * Implement basic Projection Worker logic in `apps/projection-worker` to consume `TenantCreated`, `UserRegistered` events.
+  * Implement logic within the worker to update the read model tables.
+  * Implement Redis Pub/Sub notification publishing from the projection worker.
 * **Active Decisions:**
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
@@ -34,3 +42,7 @@
   * Analyzed trade-offs for backend/frontend frameworks, component libraries, event stores, multi-tenancy strategies, deployment costs, licensing, and repo structures.
   * Established the feasibility of the 3 deployment models with careful abstraction.
   * Recognized the complexity introduced by microservices, especially for Model 1 deployment.
+  * `replace_in_file` tool seems unreliable for larger markdown file edits; `write_to_file` used as fallback.
+  * Error reporting feedback loop can sometimes be stale; `cargo check` needed for confirmation.
+  * Implementing `From<SpecificError>` for `GeneralError` is key for using `?` effectively across layers.
+  * Axum state management with `Arc` provides straightforward dependency injection.

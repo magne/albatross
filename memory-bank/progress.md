@@ -1,7 +1,13 @@
 # Progress
 
-* **Current Status:** Phase 1, Steps 1 & 2 completed. Ready to start Step 3 (Command Handlers).
+* **Current Status:** Phase 1, Step 3 completed. Ready to start Step 4 (Projections & Notifications).
 * **Completed Features/Milestones:**
+  * **Phase 1, Step 3:**
+    * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler`) in `apps/api-gateway`.
+    * Implemented basic command dispatch logic: DTOs, Axum route handlers (`/api/users`, `/api/tenants`), state injection, error mapping to HTTP responses in `api-gateway`.
+    * Added necessary dependencies and error handling infrastructure to `api-gateway`.
+    * Added `From<AggregateError>` implementations to `CoreError` in `libs/core-lib`.
+    * Verified `apps/api-gateway` compiles successfully (with expected warnings for unused code).
   * **Phase 1, Steps 1 & 2:**
     * Defined core ES/CQRS Ports (traits) in `libs/core-lib`.
     * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib`.
@@ -20,13 +26,15 @@
     * Set up basic GitHub Actions CI workflow (`.github/workflows/ci.yml`).
     * Implemented basic frontend asset embedding in `api-gateway` using `rust-embed`.
 * **Work In Progress:** None.
-* **Upcoming Work (Phase 1, Step 3 Start):**
-  * Implement command handlers in `apps/api-gateway` for `RegisterUser`, `ChangePassword`, `GenerateApiKey`, `LoginUser`, `CreateTenant`.
-  * Implement basic command dispatch logic in `api-gateway`.
-  * Ensure handlers use the appropriate Ports (`Repository`, `EventPublisher`).
-  * (Subsequent Steps): Implement PostgreSQL Event Store logic, Projection Worker logic, Read Models, API endpoints, Redis caching/PubSub, Frontend UI, Testing.
+* **Upcoming Work (Phase 1, Step 4 Start):**
+  * Design initial Read Model schemas (PostgreSQL tables) for `tenants`, `users`.
+  * Set up `refinery` migrations for read models.
+  * Implement basic Projection Worker logic in `apps/projection-worker` to consume `TenantCreated`, `UserRegistered` events.
+  * Implement logic within the worker to update the read model tables.
+  * Implement Redis Pub/Sub notification publishing from the projection worker.
+  * (Subsequent Steps): Implement PostgreSQL Event Store logic, remaining Projection Worker logic, remaining Read Models, remaining API endpoints, Redis caching/PubSub, Frontend UI, Testing.
 * **Known Issues/Bugs:** None specific yet.
-  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack (especially if self-hosting infra in K8s). Password handling in aggregates needs careful review (currently placeholder).
+  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack (especially if self-hosting infra in K8s). Password handling in aggregates needs careful review (currently placeholder). Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement.
 * **Decision Log:** (Summary of key decisions from initial planning & recent updates)
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.

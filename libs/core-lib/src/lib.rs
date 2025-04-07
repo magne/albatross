@@ -28,6 +28,54 @@ pub enum CoreError {
     Internal(String),
 }
 
+// Implement From<UserError> for CoreError (and potentially others later)
+// This allows '?' to convert specific aggregate errors into CoreError in handlers
+impl From<domain::user::UserError> for CoreError {
+    fn from(err: domain::user::UserError) -> Self {
+        match err {
+            domain::user::UserError::Core(ce) => ce,
+            domain::user::UserError::NotFound(id) => CoreError::NotFound(id),
+            domain::user::UserError::AlreadyExists(id) => {
+                CoreError::Validation(format!("User already exists: {}", id))
+            }
+            domain::user::UserError::InvalidInput(msg)
+            | domain::user::UserError::InvalidRole(msg) => CoreError::Validation(msg),
+            domain::user::UserError::TenantIdRequired => {
+                CoreError::Validation("Tenant ID required".into())
+            }
+            domain::user::UserError::InvalidPassword => {
+                CoreError::Unauthorized("Invalid password".into())
+            } // Map to Unauthorized
+        }
+    }
+}
+
+// Implement From<TenantError> for CoreError
+impl From<domain::tenant::TenantError> for CoreError {
+    fn from(err: domain::tenant::TenantError) -> Self {
+        match err {
+            domain::tenant::TenantError::Core(ce) => ce,
+            domain::tenant::TenantError::AlreadyExists(id) => {
+                CoreError::Validation(format!("Tenant already exists: {}", id))
+            }
+            domain::tenant::TenantError::InvalidInput(msg) => CoreError::Validation(msg),
+        }
+    }
+}
+
+// Implement From<PirepError> for CoreError
+impl From<domain::pirep::PirepError> for CoreError {
+    fn from(err: domain::pirep::PirepError) -> Self {
+        match err {
+            domain::pirep::PirepError::Core(ce) => ce,
+            domain::pirep::PirepError::AlreadyExists(id) => {
+                CoreError::Validation(format!("PIREP already submitted: {}", id))
+            }
+            domain::pirep::PirepError::InvalidInput(msg) => CoreError::Validation(msg),
+        }
+    }
+}
+
 // Marker trait for commands
 pub trait Command: Send + Sync + 'static {}
 
