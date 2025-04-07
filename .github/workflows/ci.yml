@@ -26,6 +26,11 @@ jobs:
         toolchain: stable
         components: clippy, rustfmt
 
+    - name: Set up Protobuf Compiler
+      uses: arduino/setup-protoc@v3 # Installs protoc
+      # with:
+        # version: '3.x' # Optional: Specify version if needed
+
     - name: Set up Node.js and PNPM
       uses: actions/setup-node@v4
       with:
