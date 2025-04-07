@@ -11,6 +11,7 @@ where
     A::Event: Clone, // Events need to be cloneable to be stored and retrieved
 {
     // Store: Aggregate ID -> (Current Version, Vec<Events>)
+    #[allow(clippy::type_complexity)]
     store: Arc<DashMap<String, (u64, Vec<A::Event>)>>,
 }
 
@@ -88,6 +89,7 @@ mod tests {
     impl Event for TestEvent {}
 
     #[derive(Debug, Clone)]
+    #[allow(dead_code)]
     enum TestCommand {
         Create(String),
         Update(String),

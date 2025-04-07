@@ -59,6 +59,7 @@ impl Aggregate for Pirep {
 
     /// Apply state changes based on events.
     fn apply(&mut self, event: Self::Event) {
+        #[allow(clippy::match_single_binding)]
         match event {
             PirepSubmitted {
                 // Corrected casing

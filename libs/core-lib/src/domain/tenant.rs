@@ -53,6 +53,7 @@ impl Aggregate for Tenant {
 
     /// Apply state changes based on events.
     fn apply(&mut self, event: Self::Event) {
+        #[allow(clippy::match_single_binding)]
         match event {
             TenantCreated {
                 tenant_id, name, ..
