@@ -1,0 +1,72 @@
+name: CI Checks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  # Consider caching PNPM store and Cargo directories for faster runs
+  # See: https://github.com/actions/cache
+
+jobs:
+  check-and-build:
+    name: Check, Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: clippy, rustfmt
+
+    - name: Set up Node.js and PNPM
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22' # Or your preferred LTS version
+
+    - uses: pnpm/action-setup@v4
+      name: Install pnpm
+      with:
+        version: 10 # Or your preferred PNPM version
+        run_install: false
+
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+    - uses: actions/cache@v4
+      name: Setup pnpm cache
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Install Node dependencies
+      run: pnpm install
+
+    - name: Run Biome check
+      run: pnpm biome:check # Assumes script defined in root package.json
+
+    - name: Build Frontend
+      run: cd apps/web-ui && pnpm build
+
+    - name: Run cargo fmt check
+      run: cargo fmt --all -- --check
+
+    - name: Run cargo clippy
+      run: cargo clippy --workspace -- -D warnings
+
+    - name: Run cargo check
+      run: cargo check --workspace
+
+    - name: Run cargo test
+      run: cargo test --workspace

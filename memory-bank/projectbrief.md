@@ -1,7 +1,7 @@
 # Project Brief
 
-* **Project Name:** [Albatross / Axiom Air / OpsCore VA / Waypoint VA Suite - Needs Final Decision]
-* **Core Goal:** Develop a web-based, multi-tenant Virtual Airline (VA) Management Platform using modern technologies (Rust/Axum backend, ES/CQRS, chosen frontend stack) suitable for both local/personal use and scalable cloud deployment.
+* **Project Name:** Albatross (Finalized)
+* **Core Goal:** Develop a web-based, multi-tenant Virtual Airline (VA) Management Platform using modern technologies (Rust/Axum backend, ES/CQRS, React/Vite/Tailwind frontend) suitable for both local/personal use and scalable cloud deployment.
 * **Key Features:**
   * Airline Administration (Profile, Branding, Hubs, Staff)
   * Pilot Management (Registration, Profiles, PIREPs, Ranks, Awards)

@@ -8,7 +8,7 @@
   * RabbitMQ as Event Bus: Mature, reliable message broker for distributing events between services (command handlers to projection workers) using competing consumers pattern. Chosen over Kafka initially for potentially simpler operations ("Scenario B").
   * Redis for Cache/PubSub: Standard choice for low-latency caching of read models and facilitating real-time notifications via backend Pub/Sub.
   * Shared Database (Initially): Using a single PostgreSQL instance for both the Event Store and Read Models, logically separated (different tables/schemas). Multi-tenancy handled via `tenant_id` filtering.
-  * Protobuf for Events/Commands: Recommended for strong schema evolution support, performance, and type safety.
+  * Protobuf for Events/Commands: Chosen for strong schema evolution support, performance, and type safety. Events stored as binary (`bytea`) in Postgres.
 * **Design Patterns:**
   * **Event Sourcing:** Core pattern. State is derived from a sequence of immutable events.
   * **CQRS:** Separating command handling (state changes) from query handling (reading state). Commands modify aggregates; queries read optimized projections (read models).
@@ -23,7 +23,7 @@
     ```mermaid
     graph TD
         subgraph Frontend
-            F[Web UI - React/Vue/Svelte + Tailwind CSS]
+            F[Web UI - React + Tailwind CSS v4]
         end
 
         subgraph Backend API / Gateway [Backend API / Gateway - Axum]
@@ -66,7 +66,7 @@
   * **Projection Update:** Event Published (to MQ) -> Projection Worker Consumes -> Update Read Model (in RM_DB) -> Update Cache -> Publish Notification (to Redis PubSub).
   * **Real-time UI Update:** Notification (Redis PubSub) -> Backend API Instance -> Forward to relevant WebSocket/SSE Client -> Frontend UI Update.
 * **Data Management:**
-  * **Events:** Primary source of truth. Stored immutably in PostgreSQL (JSONB or Protobuf bytes) with stream ID (including `tenant_id`), version number. Append-only.
+  * **Events:** Primary source of truth. Stored immutably in PostgreSQL (as binary `bytea` using Protobuf serialization) with stream ID (including `tenant_id`), version number. Append-only.
   * **Read Models:** Denormalized projections optimized for specific queries. Stored in PostgreSQL relational tables. Updated asynchronously by projections. Includes `tenant_id` for filtering. Eventually consistent.
   * **Cache:** Frequently accessed read model data cached in Redis for performance.
   * **State:** Aggregate state is rebuilt from events when processing commands. Application state (sessions) potentially in Redis or JWTs.

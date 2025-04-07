@@ -1,34 +1,33 @@
 # Active Context
 
-* **Current Focus:** Initial project planning and setup based on the conversation log (`doc/conversations/2025-04-05-initial.md`). Finalizing foundational decisions and preparing for Phase 0 implementation.
-* **Recent Changes:** (Based on initial planning conversation)
-  * Defined core project goal: Multi-tenant VA Management Platform.
-  * Selected core architecture: ES/CQRS, Microservices (planned), Multi-tenant.
-  * Selected technology stack:
-    * Backend: Rust / Axum
-    * Frontend: Vite + Tailwind CSS + (React/Vue/Svelte TBD, Headless UI/Radix suggested)
-    * Infrastructure: PostgreSQL (Events/Reads), RabbitMQ (Event Bus), Redis (Cache/PubSub) - "Scenario B".
-  * Decided on Monorepo structure.
-  * Outlined 3 Deployment Models (Single Executable, Docker Compose, Kubernetes/k3s).
-  * Recommended Protobuf for event/command serialization.
-  * Discussed licensing options (Dual AGPLv3+Commercial or BSL).
-  * Revised initial development plan into phases.
-* **Next Steps:** Execute Phase 0 of the revised plan:
-  * Finalize Frontend Framework (Decision Postponed).
-  * Set up Monorepo (Git, Cargo Workspace, potentially JS workspace).
-  * Create initial service/app skeletons and shared libraries.
-  * Set up infrastructure via Docker Compose (`infrastructure.yml`).
-  * Create initial Helm charts for infrastructure.
-  * Set up basic CI/CD pipeline.
-  * Integrate Protobuf build process.
+* **Current Focus:** Phase 1 - Core MVP implementation. Building the essential features (Airline Profile, Pilot Registration, basic PIREP submission/viewing) within the established monorepo structure. Proving the core ES/CQRS loop with the chosen stack.
+* **Recent Changes (Phase 0 Completion):**
+  * Finalized core technology stack (Axum, React, Vite/SWC, Tailwind v4, Postgres, RabbitMQ, Redis, Protobuf).
+  * Set up monorepo structure (`apps/`, `libs/`) with Cargo workspace and PNPM/Biome.
+  * Created initial service/app skeletons (`api-gateway`, `core-lib`, `proto`, `web-ui`).
+  * Configured basic Protobuf build process within `libs/proto`.
+  * Set up frontend project (`web-ui`) with React, Router, Vite, SWC, and Tailwind v4.
+  * Created basic infrastructure definition (`docker-compose.infra.yml`) and Helm placeholder (`infra/helm/README.md`).
+  * Established basic CI workflow (`.github/workflows/ci.yml`).
+  * Configured basic frontend embedding (`rust-embed`) in `api-gateway`.
+* **Next Steps (Phase 1 Start):**
+  * Implement core ES/CQRS plumbing in Axum service(s) (command handling, aggregate loading/saving, event publishing).
+  * Develop initial Aggregates/Events (e.g., Airline, User/Pilot, PIREP) using Protobuf.
+  * Implement PostgreSQL Event Store logic (append, read stream, optimistic concurrency).
+  * Implement basic Projection Worker logic (consuming RabbitMQ events, updating PostgreSQL read models).
+  * Design and implement initial PostgreSQL Read Models.
+  * Develop API endpoints in Axum for core MVP features.
+  * Implement basic Redis caching and Pub/Sub notifications.
+  * Build frontend UI components for MVP features.
 * **Active Decisions:**
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Microservices, Multi-tenant.
-  * Stack: Axum, Tailwind, Vite, Postgres, RabbitMQ, Redis.
-  * Structure: Monorepo.
+  * Backend Stack: Axum (Rust), Postgres, RabbitMQ, Redis.
+  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4.
+  * Structure: Monorepo (Cargo Workspace, PNPM).
   * Deployment: 3 Models defined.
   * Serialization: Protobuf (stored as binary `bytea`).
-  * *Pending Final Decision:* Frontend Framework (React/Vue/Svelte - Decision Postponed).
+  * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
 * **Key Patterns/Preferences:**
   * Prioritize Open Source components and minimal vendor lock-in.
   * Aim for good Developer Experience (DX), including debugging support for microservices potentially running outside k3s.

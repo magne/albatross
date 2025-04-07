@@ -1,0 +1,65 @@
+# docker-compose.infra.yml
+# Defines core infrastructure services (PostgreSQL, RabbitMQ, Redis)
+# Meant to be used alongside an application-specific compose file.
+
+services:
+  postgres:
+    image: postgres:16-alpine # Use a specific version
+    container_name: albatross_postgres
+    ports:
+      - "5432:5432" # Expose default Postgres port
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Persist data
+    environment:
+      # Default credentials - CHANGE FOR PRODUCTION or use .env file
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-albatross_dev}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-albatross_dev}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine # Use specific version with management UI
+    container_name: albatross_rabbitmq
+    ports:
+      - "5672:5672"  # AMQP port
+      - "15672:15672" # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq/ # Persist data
+    environment:
+      # Default credentials - CHANGE FOR PRODUCTION or use .env file
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine # Use specific version
+    container_name: albatross_redis
+    ports:
+      - "6379:6379" # Expose default Redis port
+    volumes:
+      - redis_data:/data # Persist data
+    command: redis-server --save 60 1 --loglevel warning # Basic persistence config
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local

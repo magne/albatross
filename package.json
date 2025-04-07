@@ -1,0 +1,13 @@
+{
+  "name": "albatross-workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "biome:check": "pnpm exec biome check .",
+    "biome:apply": "pnpm exec biome check --write --unsafe ."
+  },
+  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  }
+}
