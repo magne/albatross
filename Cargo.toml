@@ -3,5 +3,6 @@ resolver = "3"
 members = [
     "libs/core-lib",
     "apps/api-gateway",
-    "libs/proto"
+    "libs/proto",
+    "apps/projection-worker",
 ]

@@ -1,6 +1,13 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 4 - Implement First Projections & Notifications.
+* **Current Focus:** Phase 1, Step 5 - Implement First Query Endpoints & Caching.
+* **Recent Changes (Phase 1, Step 4 Completion):**
+  * Created `apps/projection-worker` service skeleton and added to workspace.
+  * Defined initial read model schemas (`tenants`, `users`) and migration file (`V1__initial_read_models.sql`).
+  * Embedded migrations in `projection-worker` using `refinery`.
+  * Implemented basic event consumption loop in `projection-worker` using `InMemoryEventBus` (for now).
+  * Implemented placeholder projection handlers (`handle_tenant_created`, `handle_user_registered`) with TODOs for DB updates and Redis notifications.
+  * Verified `apps/projection-worker` compiles successfully (with expected warnings).
 * **Recent Changes (Phase 1, Step 3 Completion):**
   * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler`) in `apps/api-gateway`.
   * Implemented basic command dispatch logic: DTOs, Axum route handlers (`/api/users`, `/api/tenants`), state injection, error mapping to HTTP responses in `api-gateway`.
@@ -14,12 +21,10 @@
   * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib`.
   * Verified `libs/core-lib` and `libs/proto` compile successfully.
   * (Phase 0): Finalized core technology stack, set up monorepo, created skeletons, configured Protobuf build, set up frontend, created infra placeholders, basic CI, basic embedding.
-* **Next Steps (Phase 1, Step 4 Start):**
-  * Design initial Read Model schemas (PostgreSQL tables) for `tenants`, `users`.
-  * Set up `refinery` migrations for read models.
-  * Implement basic Projection Worker logic in `apps/projection-worker` to consume `TenantCreated`, `UserRegistered` events.
-  * Implement logic within the worker to update the read model tables.
-  * Implement Redis Pub/Sub notification publishing from the projection worker.
+* **Next Steps (Phase 1, Step 5 Start):**
+  * Develop API query endpoints in `apps/api-gateway` (e.g., `GET /api/tenants`, `GET /api/users`).
+  * Implement basic query handlers/logic to read directly from read models (requires DB connection setup - deferring actual DB interaction).
+  * Implement basic Redis caching for these query endpoints using the `Cache` port/adapter.
 * **Active Decisions:**
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
