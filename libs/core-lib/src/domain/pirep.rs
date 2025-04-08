@@ -1,6 +1,6 @@
 use crate::{Aggregate, Command, CoreError, Event};
 use async_trait::async_trait;
-use proto::pirep::{PirepSubmitted, SubmitPirep}; // Corrected casing for generated types
+use proto::pirep::{PirepSubmitted, SubmitPirep};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // --- PIREP Aggregate ---
@@ -45,8 +45,8 @@ pub enum PirepError {
 
 #[async_trait]
 impl Aggregate for Pirep {
-    type Command = SubmitPirep; // Corrected casing
-    type Event = PirepSubmitted; // Corrected casing
+    type Command = SubmitPirep;
+    type Event = PirepSubmitted; // Event is the concrete type here
     type Error = PirepError;
 
     fn aggregate_id(&self) -> &str {

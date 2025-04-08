@@ -76,6 +76,14 @@ impl From<domain::pirep::PirepError> for CoreError {
     }
 }
 
+/// Data structure representing a stored event retrieved from persistence.
+#[derive(Debug, Clone)]
+pub struct StoredEventData {
+    pub sequence: u64,
+    pub event_type: String,
+    pub payload: Vec<u8>,
+}
+
 // Marker trait for commands
 pub trait Command: Send + Sync + 'static {}
 
@@ -90,7 +98,8 @@ pub trait Event: Send + Sync + 'static {
 #[async_trait]
 pub trait Aggregate: Send + Sync + Default {
     type Command: Command;
-    type Event: Event;
+    // Event type associated with this aggregate (can be an enum)
+    type Event: Event + Clone + Send + Sync + Unpin + 'static; // Removed Message + Default bounds
     type Error: From<CoreError>; // Aggregates define their specific error type
 
     fn aggregate_id(&self) -> &str;
@@ -103,29 +112,22 @@ pub trait Aggregate: Send + Sync + Default {
     /// Handle a command and produce events.
     /// This is where business logic and validation occur.
     async fn handle(&self, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error>;
-
-    /// Load the aggregate state from a sequence of events.
-    fn load(events: Vec<Self::Event>) -> Result<Self, Self::Error> {
-        let mut aggregate = Self::default();
-        for event in events {
-            aggregate.apply(event);
-        }
-        Ok(aggregate)
-    }
 }
 
 // Port for interacting with the event store
 #[async_trait]
-pub trait Repository<A: Aggregate>: Send + Sync {
+pub trait Repository: Send + Sync {
     /// Load events for a specific aggregate instance.
-    async fn load(&self, aggregate_id: &str) -> Result<Vec<A::Event>, CoreError>;
+    /// Returns raw event data (payload + metadata).
+    async fn load(&self, aggregate_id: &str) -> Result<Vec<StoredEventData>, CoreError>;
 
     /// Save new events for an aggregate instance, handling concurrency.
+    /// Takes raw event data (type string + payload bytes).
     async fn save(
         &self,
         aggregate_id: &str,
         expected_version: u64,
-        events: &[A::Event],
+        events: &[(String, Vec<u8>)], // Tuple of (event_type, payload)
     ) -> Result<(), CoreError>;
 }
 
@@ -167,6 +169,6 @@ pub trait EventSubscriber: Send + Sync {
 pub trait Cache: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, CoreError>;
     async fn set(&self, key: &str, value: &[u8], ttl_seconds: Option<u64>)
-    -> Result<(), CoreError>;
+        -> Result<(), CoreError>;
     async fn delete(&self, key: &str) -> Result<(), CoreError>;
 }

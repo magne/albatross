@@ -11,11 +11,9 @@ thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"                                                  # For potential JSON logging or metadata
-prost = "0.13"                                                      # For deserializing protobuf events
+serde_json = "1.0" # For potential JSON logging or metadata
+prost = "0.13" # For deserializing protobuf events
 async-trait = "0.1"
-
-# Dependencies for DB Migrations (Refinery) and eventual DB connection
 refinery = { version = "0.8", features = ["tokio-postgres"] }
 tokio-postgres = { version = "0.7", features = [
     "with-chrono-0_4",

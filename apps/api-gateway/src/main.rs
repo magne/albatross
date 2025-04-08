@@ -3,21 +3,17 @@ use axum::{
     body::Body,
     http::{HeaderValue, StatusCode, Uri, header},
     response::{IntoResponse, Response},
-    routing::{get, post}, // Added post
+    routing::{get, post},
 };
 use core_lib::{
-    Cache,
-    // Import core traits and in-memory adapters
-    EventPublisher,
-    Repository,
+    Cache, EventPublisher, Repository,
     adapters::{
         in_memory_cache::InMemoryCache, in_memory_event_bus::InMemoryEventBus,
         in_memory_repository::InMemoryEventRepository,
     },
-    domain::{tenant::Tenant, user::User}, // Import aggregates
 };
 use rust_embed::RustEmbed;
-use std::{net::SocketAddr, sync::Arc}; // Added Arc
+use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
@@ -25,9 +21,7 @@ use tracing_subscriber::FmtSubscriber;
 // Declare application modules
 mod application;
 use application::commands::{
-    create_tenant::handle_create_tenant_request,
-    // Import handler functions
-    register_user::handle_register_user_request,
+    create_tenant::handle_create_tenant_request, register_user::handle_register_user_request,
 };
 
 // Define the struct to embed frontend assets
@@ -79,9 +73,8 @@ async fn main() {
     // --- Dependency Injection Setup ---
     // Create instances of our in-memory adapters
     // Use Arc for shared ownership across handlers/requests
-    let user_repo: Arc<dyn Repository<User>> = Arc::new(InMemoryEventRepository::<User>::default());
-    let tenant_repo: Arc<dyn Repository<Tenant>> =
-        Arc::new(InMemoryEventRepository::<Tenant>::default());
+    let user_repo: Arc<dyn Repository> = Arc::new(InMemoryEventRepository::default()); // Removed <User>
+    let tenant_repo: Arc<dyn Repository> = Arc::new(InMemoryEventRepository::default()); // Removed <Tenant>
     // Note: Pirep repo needed later
     let event_bus: Arc<dyn EventPublisher> = Arc::new(InMemoryEventBus::default());
     let cache: Arc<dyn Cache> = Arc::new(InMemoryCache::default()); // Added cache
@@ -133,8 +126,8 @@ async fn main() {
 #[derive(Clone)]
 #[allow(dead_code)]
 struct AppState {
-    user_repo: Arc<dyn Repository<User>>,
-    tenant_repo: Arc<dyn Repository<Tenant>>,
+    user_repo: Arc<dyn Repository>,
+    tenant_repo: Arc<dyn Repository>,
     // pirep_repo: Arc<dyn Repository<Pirep>>, // Add later
     event_bus: Arc<dyn EventPublisher>,
     cache: Arc<dyn Cache>,

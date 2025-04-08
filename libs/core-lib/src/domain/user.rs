@@ -1,16 +1,8 @@
 use crate::{Aggregate, Command, CoreError, Event};
 use async_trait::async_trait;
 use proto::user::{
-    // Import specific types needed
-    ApiKeyGenerated,
-    ChangePassword,
-    GenerateApiKey,
-    LoginUser,
-    PasswordChanged,
-    RegisterUser,
-    Role, // Import Role enum
-    UserLoggedIn,
-    UserRegistered,
+    ApiKeyGenerated, ChangePassword, GenerateApiKey, LoginUser, PasswordChanged, RegisterUser,
+    Role, UserLoggedIn, UserRegistered,
 };
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -72,8 +64,8 @@ impl Aggregate for User {
     // Define which commands this aggregate handles directly
     // Note: LoginUser might be handled differently (e.g., by an auth service reading projections)
     // but we include it here if the aggregate needs to emit UserLoggedIn event.
-    type Command = UserCommand; // Use local enum
-    type Event = UserEvent; // Use local enum
+    type Command = UserCommand;
+    type Event = UserEvent;
     type Error = UserError;
 
     fn aggregate_id(&self) -> &str {
@@ -149,7 +141,6 @@ impl User {
     // --- Command Handlers ---
 
     async fn handle_register(&self, command: RegisterUser) -> Result<Vec<UserEvent>, UserError> {
-        // Use local UserEvent
         if self.version > 0 {
             return Err(UserError::AlreadyExists(self.id.clone()));
         }
@@ -189,14 +180,13 @@ impl User {
         // setting state *before* returning the event, or having a separate internal state update.
         // For now, assume the projection or command handler applies the hash.
 
-        Ok(vec![UserEvent::Registered(event)]) // Use local UserEvent
+        Ok(vec![UserEvent::Registered(event)])
     }
 
     async fn handle_change_password(
         &self,
         command: ChangePassword,
     ) -> Result<Vec<UserEvent>, UserError> {
-        // Use local UserEvent
         if command.user_id != self.id {
             return Err(UserError::NotFound(command.user_id)); // Or Unauthorized
         }
@@ -214,14 +204,13 @@ impl User {
         };
         // Implicit state update of self.password_hash needed here or by caller
 
-        Ok(vec![UserEvent::PasswordChanged(event)]) // Use local UserEvent
+        Ok(vec![UserEvent::PasswordChanged(event)])
     }
 
     async fn handle_generate_api_key(
         &self,
         command: GenerateApiKey,
     ) -> Result<Vec<UserEvent>, UserError> {
-        // Use local UserEvent
         if command.user_id != self.id {
             return Err(UserError::NotFound(command.user_id)); // Or Unauthorized
         }
@@ -240,14 +229,13 @@ impl User {
             timestamp,
         };
 
-        Ok(vec![UserEvent::ApiKeyGenerated(event)]) // Use local UserEvent
+        Ok(vec![UserEvent::ApiKeyGenerated(event)])
     }
 
     async fn handle_login(
         &self,
         _command: LoginUser, // Prefixed with underscore as it's currently unused in this placeholder
     ) -> Result<Vec<UserEvent>, UserError> {
-        // Use local UserEvent
         // !!! SECURITY WARNING !!!
         // Aggregates should typically NOT handle plain text passwords.
         // Password verification should happen *before* calling the aggregate,
@@ -268,7 +256,7 @@ impl User {
             timestamp,
         };
 
-        Ok(vec![UserEvent::LoggedIn(event)]) // Use local UserEvent
+        Ok(vec![UserEvent::LoggedIn(event)])
     }
 }
 
@@ -320,7 +308,7 @@ mod tests {
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "hashed_password".to_string(),
-            initial_role: Role::Pilot as i32, // Use generated CamelCase variant name
+            initial_role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
         });
 
@@ -355,7 +343,7 @@ mod tests {
             user_id: "user-1".to_string(),
             username: "existing".to_string(),
             email: "exist@example.com".to_string(),
-            role: Role::Pilot as i32, // Use generated CamelCase variant name
+            role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
             timestamp: "0".to_string(),
         }));
@@ -367,7 +355,7 @@ mod tests {
             username: "newuser".to_string(),
             email: "new@example.com".to_string(),
             password_hash: "new_hash".to_string(),
-            initial_role: Role::Pilot as i32, // Use generated CamelCase variant name
+            initial_role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
         });
 
@@ -387,7 +375,7 @@ mod tests {
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "hashed_password".to_string(),
-            initial_role: Role::Pilot as i32, // Use generated CamelCase variant name
+            initial_role: Role::Pilot as i32,
             tenant_id: None,
         });
 
@@ -404,8 +392,8 @@ mod tests {
             username: "adminuser".to_string(),
             email: "admin@example.com".to_string(),
             password_hash: "hashed_password".to_string(),
-            initial_role: Role::PlatformAdmin as i32, // Use generated CamelCase variant name
-            tenant_id: Some("tenant-1".to_string()),  // PlatformAdmin should NOT have tenant_id
+            initial_role: Role::PlatformAdmin as i32,
+            tenant_id: Some("tenant-1".to_string()), // PlatformAdmin should NOT have tenant_id
         });
 
         let result = aggregate.handle(command).await;
@@ -423,7 +411,7 @@ mod tests {
             user_id: "user-1".to_string(),
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
-            role: Role::Pilot as i32, // Use generated CamelCase variant name
+            role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
             timestamp: "0".to_string(),
         }));
@@ -457,7 +445,7 @@ mod tests {
             user_id: "user-1".to_string(),
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
-            role: Role::Pilot as i32, // Use generated CamelCase variant name
+            role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
             timestamp: "0".to_string(),
         }));

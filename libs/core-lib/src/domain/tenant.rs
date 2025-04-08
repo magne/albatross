@@ -1,6 +1,6 @@
 use crate::{Aggregate, Command, CoreError, Event};
 use async_trait::async_trait;
-use proto::tenant::{CreateTenant, TenantCreated}; // Import generated types
+use proto::tenant::{CreateTenant, TenantCreated};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // --- Tenant Aggregate ---
@@ -105,7 +105,7 @@ impl Aggregate for Tenant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Aggregate; // Use the trait definition
+    use crate::Aggregate;
 
     #[tokio::test]
     async fn test_create_tenant_command() {

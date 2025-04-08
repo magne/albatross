@@ -96,7 +96,6 @@ mod tests {
     }
 
     #[tokio::test]
-    // Renamed test to reflect behavior: uses default TTL set during construction
     async fn test_entry_expires_based_on_default_ttl() {
         // Use a small capacity and TTL for testing expiry
         let default_ttl_seconds = 1;
@@ -122,8 +121,6 @@ mod tests {
             "Cache entry should have expired based on default TTL"
         );
     }
-
-    // Removed the redundant test_set_with_default_ttl as the previous test now covers this.
 
     #[tokio::test]
     async fn test_overwrite() {

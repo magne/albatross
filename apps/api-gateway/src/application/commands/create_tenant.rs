@@ -1,32 +1,25 @@
 use crate::AppState;
 use async_trait::async_trait;
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse}; // Axum imports
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate,
-    CommandHandler,
-    CoreError,
-    EventPublisher,
-    Repository, // CommandHandler trait needed
+    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
     domain::tenant::{Tenant, TenantError},
 };
-use proto::tenant::{CreateTenant, TenantCreated};
-use serde::Deserialize; // For request DTO
+use prost::Message;
+use proto::tenant::CreateTenant;
+use serde::Deserialize;
 use std::sync::Arc;
-use uuid::Uuid; // Need Uuid for generating ID // Import AppState
-
-// Note: While ApplicationError is defined, the trait requires CoreError
-// type HandlerError = ApplicationError;
+use uuid::Uuid;
 
 pub struct CreateTenantHandler {
-    // Use Arc<dyn Trait> for dependency injection
-    tenant_repository: Arc<dyn Repository<Tenant>>,
+    tenant_repository: Arc<dyn Repository>,
     event_publisher: Arc<dyn EventPublisher>,
 }
 
 impl CreateTenantHandler {
     #[allow(dead_code)]
     pub fn new(
-        tenant_repository: Arc<dyn Repository<Tenant>>,
+        tenant_repository: Arc<dyn Repository>,
         event_publisher: Arc<dyn EventPublisher>,
     ) -> Self {
         Self {
@@ -38,7 +31,6 @@ impl CreateTenantHandler {
 
 #[async_trait]
 impl CommandHandler<CreateTenant> for CreateTenantHandler {
-    // Return CoreError to match the trait definition
     async fn handle(&self, command: CreateTenant) -> Result<(), CoreError> {
         // 1. Load Aggregate (or check if exists - Create should fail if exists)
         // Similar to RegisterUser, the aggregate's handle method checks for existence.
@@ -56,27 +48,31 @@ impl CommandHandler<CreateTenant> for CreateTenantHandler {
             }
         })?;
 
+        // --- Serialize Events for Saving ---
+        let events_to_save: Vec<(String, Vec<u8>)> = events
+            .iter()
+            .map(|event| {
+                let event_type = "TenantCreated".to_string(); // Only one event type for Tenant
+                let payload = event.encode_to_vec();
+                (event_type, payload)
+            })
+            .collect();
+        // --- End Serialization ---
+
         // 3. Save events using the repository
         // For creation, expected_version is 0
         self.tenant_repository
-            .save(&command.tenant_id, 0, &events)
-            .await?; // This returns CoreError, which converts via #[from]
+            .save(&command.tenant_id, 0, &events_to_save) // Pass serialized data
+            .await?;
 
-        // 4. Publish events
+        // 4. Publish events (using serialized data)
         // TODO: Define proper topic naming convention
         let topic = "tenant_events";
-        for event in events {
-            // TODO: Serialize event payload properly (e.g., using Prost)
-            // Placeholder: using debug format
-            let payload = format!("{:?}", event).into_bytes();
-            #[allow(clippy::match_single_binding)]
-            let event_type = match event {
-                TenantCreated { .. } => "TenantCreated",
-                // No other events expected from CreateTenant command
-            };
+        for (event_type, payload) in &events_to_save {
+            // Iterate over serialized data
             self.event_publisher
-                .publish(topic, event_type, &payload)
-                .await?; // This returns CoreError, which converts via #[from]
+                .publish(topic, event_type, payload) // Publish raw bytes
+                .await?;
         }
 
         Ok(())
@@ -84,8 +80,6 @@ impl CommandHandler<CreateTenant> for CreateTenantHandler {
 }
 
 // TODO: Add tests for the handler, mocking the repository and publisher
-
-// --- DTO for the HTTP Request ---
 
 #[derive(Deserialize, Debug)]
 pub struct CreateTenantDto {

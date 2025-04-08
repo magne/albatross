@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use tokio::sync::broadcast::{self, Sender}; // Removed RecvError import
+use tokio::sync::broadcast::{self, Sender};
 
 /// Represents a message published on the in-memory bus.
 #[derive(Clone, Debug)]
@@ -107,7 +107,7 @@ impl EventSubscriber for InMemoryEventBus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{Duration, timeout};
+    use tokio::time::{timeout, Duration};
 
     #[tokio::test]
     async fn test_publish_and_subscribe() {

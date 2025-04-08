@@ -1,7 +1,14 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 4 completed. Ready to start Step 5 (Query Endpoints & Caching). Phase 1.5 plan created.
+* **Current Status:** Phase 1, Step 5 completed. Ready to start Step 6 (Projection DB Logic & Notifications).
 * **Completed Features/Milestones:**
+  * **Phase 1, Step 5:**
+    * Implemented real infrastructure adapters (`PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`) in `libs/core-lib`.
+    * Added corresponding dependencies (`sqlx`, `lapin`, `redis-rs`, `testcontainers-rs`, `testcontainers-modules`) to `libs/core-lib`.
+    * Implemented basic integration tests for adapters using `testcontainers-rs`.
+    * Refactored `Repository` trait and `InMemoryEventRepository` to handle raw event data.
+    * Removed flawed default `Aggregate::load_from_data` method.
+    * Verified `libs/core-lib` compiles successfully (with expected warnings).
   * **Phase 1, Step 4:**
     * Created `apps/projection-worker` service skeleton and added to workspace.
     * Defined initial read model schemas (`tenants`, `users`) and migration file (`V1__initial_read_models.sql`).
@@ -19,7 +26,7 @@
     * Defined core ES/CQRS Ports (traits) in `libs/core-lib`.
     * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib`.
     * Defined Protobuf messages for `Tenant`, `User`, and `PIREP` commands/events in `libs/proto`.
-    * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib/src/domain/`.
+    * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib`.
     * Verified `libs/core-lib` and `libs/proto` compile successfully.
   * **Phase 0:**
     * Finalized core technology stack (Axum, React, Vite/SWC, Tailwind v4, Postgres, RabbitMQ, Redis, Protobuf).
@@ -33,15 +40,16 @@
     * Set up basic GitHub Actions CI workflow (`.github/workflows/ci.yml`).
     * Implemented basic frontend asset embedding in `api-gateway` using `rust-embed`.
 * **Work In Progress:** None.
-* **Upcoming Work (Phase 1, Step 5 Start):**
-  * Develop API query endpoints in `apps/api-gateway` (e.g., `GET /api/tenants`, `GET /api/users`).
-  * Implement basic query handlers/logic to read directly from read models (requires DB connection setup - deferring actual DB interaction).
-  * Implement basic Redis caching for these query endpoints using the `Cache` port/adapter.
-  * (Subsequent Steps): Implement PostgreSQL Event Store logic, remaining Projection Worker logic, remaining Read Models, remaining API endpoints, Redis caching/PubSub, Frontend UI, Testing.
+* **Upcoming Work (Phase 1, Step 6 Start):**
+  * Set up database connection pool (`sqlx::PgPool`) in `projection-worker`.
+  * Run database migrations on startup in `projection-worker`.
+  * Update projection handlers (`handle_tenant_created`, `handle_user_registered`) to perform actual DB INSERT/UPDATE operations using `sqlx`.
+  * Implement Redis Pub/Sub notification publishing from projection handlers using the `RedisEventBus` adapter.
+  * (Subsequent Steps): Implement API query endpoints, caching, WebSocket logic, Frontend UI, PIREP flow, Admin setup, Docker setup, Testing, Documentation.
 * **Upcoming Work (Phase 1.5):**
   * See `doc/plans/phase-1.5-plan.md` for details on MVP refinement, Auth/Authz, multi-frontend implementation, etc.
 * **Known Issues/Bugs:** None specific yet.
-  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack (especially if self-hosting infra in K8s). Password handling in aggregates needs careful review (currently placeholder). Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement. DB interaction and Redis publishing in projection worker are placeholders.
+  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement. DB interaction and Redis publishing in projection worker are placeholders (to be addressed in Step 6).
 * **Decision Log:** (Summary of key decisions from initial planning & recent updates)
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.

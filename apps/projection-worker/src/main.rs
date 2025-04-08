@@ -6,15 +6,15 @@ mod migrations {
     refinery::embed_migrations!("./migrations");
 }
 
-use core_lib::CoreError; // Need EventPublisher for Redis later
-use core_lib::adapters::in_memory_event_bus::{InMemoryEventBus, InMemoryMessage}; // Use in-memory bus for now
-use prost::Message; // For deserializing protobuf
+use core_lib::CoreError;
+use core_lib::adapters::in_memory_event_bus::{InMemoryEventBus, InMemoryMessage};
+use prost::Message;
 use proto::{
     tenant::TenantCreated,
     user::{Role, UserRegistered},
-}; // Import Role enum too
+};
 use std::sync::Arc;
-use tokio::sync::broadcast::error::RecvError; // For handling recv errors
+use tokio::sync::broadcast::error::RecvError;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
