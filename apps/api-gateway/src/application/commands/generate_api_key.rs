@@ -1,5 +1,5 @@
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
+    Aggregate, CommandHandler, CoreError, DomainEvent, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserEvent},
 };
 use prost::Message;
@@ -121,20 +121,13 @@ impl CommandHandler<GenerateApiKey> for GenerateApiKeyHandler {
         let events_to_save: Vec<(String, Vec<u8>)> = resulting_events
             .iter()
             .map(|event| {
-                let event_type = match event {
-                    UserEvent::Registered(_) => "UserRegistered",
-                    UserEvent::PasswordChanged(_) => "PasswordChanged",
-                    UserEvent::ApiKeyGenerated(_) => "ApiKeyGenerated",
-                    UserEvent::LoggedIn(_) => "UserLoggedIn",
-                }
-                .to_string();
                 let payload = match event {
                     UserEvent::Registered(e) => e.encode_to_vec(),
                     UserEvent::PasswordChanged(e) => e.encode_to_vec(),
                     UserEvent::ApiKeyGenerated(e) => e.encode_to_vec(),
                     UserEvent::LoggedIn(e) => e.encode_to_vec(),
                 };
-                (event_type, payload)
+                (event.event_type(), payload)
             })
             .collect();
         // --- End Serialization ---

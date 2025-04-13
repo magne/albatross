@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::{error::Error as StdError, future::Future};
+use std::{error::Error as StdError, fmt::Debug, future::Future};
 
 // Declare modules
 pub mod adapters;
@@ -94,11 +94,19 @@ pub trait Event: Send + Sync + 'static {
     // fn event_version(&self) -> u16;
 }
 
+pub trait DomainEvent: Debug + Clone + PartialEq + Send + Sync {
+    /// A name specifying the event, used for event upcasting.
+    fn event_type(&self) -> String;
+    /// A version of the `event_type`, used for event upcasting.
+    fn event_version(&self) -> String;
+}
+
 // Trait for aggregate roots
 pub trait Aggregate: Send + Sync + Default {
     type Command: Command;
     // Event type associated with this aggregate (can be an enum)
-    type Event: Event + Clone + Send + Sync + Unpin + 'static; // Removed Message + Default bounds
+    // type Event: Event + Clone + Send + Sync + Unpin + 'static; // Removed Message + Default bounds
+    type Event: DomainEvent;
     type Error: From<CoreError>; // Aggregates define their specific error type
 
     fn aggregate_id(&self) -> &str;

@@ -1,8 +1,8 @@
 use crate::AppState;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
-    domain::tenant::{Tenant, TenantError},
+    Aggregate, CommandHandler, CoreError, DomainEvent, EventPublisher, Repository,
+    domain::tenant::{Tenant, TenantError, TenantEvent},
 };
 use prost::Message;
 use proto::tenant::CreateTenant;
@@ -50,9 +50,10 @@ impl CommandHandler<CreateTenant> for CreateTenantHandler {
         let events_to_save: Vec<(String, Vec<u8>)> = events
             .iter()
             .map(|event| {
-                let event_type = "TenantCreated".to_string(); // Only one event type for Tenant
-                let payload = event.encode_to_vec();
-                (event_type, payload)
+                let payload = match event {
+                    TenantEvent::Created(e) => e.encode_to_vec(),
+                };
+                (event.event_type(), payload)
             })
             .collect();
         // --- End Serialization ---

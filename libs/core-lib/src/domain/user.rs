@@ -1,4 +1,4 @@
-use crate::{Aggregate, Command, CoreError, Event};
+use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
 use proto::user::{
     ApiKeyGenerated, ChangePassword, GenerateApiKey, LoginUser, PasswordChanged, RegisterUser,
     Role, UserLoggedIn, UserRegistered,
@@ -41,7 +41,7 @@ impl Command for LoginUser {} // Note: Login might not directly modify aggregate
 
 // --- Events ---
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum UserEvent {
     Registered(UserRegistered),
     PasswordChanged(PasswordChanged),
@@ -49,7 +49,20 @@ pub enum UserEvent {
     LoggedIn(UserLoggedIn),
 }
 
-impl Event for UserEvent {}
+impl DomainEvent for UserEvent {
+    fn event_type(&self) -> String {
+        match self {
+            UserEvent::Registered(_) => "UserRegistered".to_string(),
+            UserEvent::PasswordChanged(_) => "PasswordChanged".to_string(),
+            UserEvent::ApiKeyGenerated(_) => "ApiKeyGenerated".to_string(),
+            UserEvent::LoggedIn(_) => "UserLoggedIn".to_string(),
+        }
+    }
+
+    fn event_version(&self) -> String {
+        "0.1.0".to_string()
+    }
+}
 
 impl Event for UserRegistered {}
 impl Event for PasswordChanged {}

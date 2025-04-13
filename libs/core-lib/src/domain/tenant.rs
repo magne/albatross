@@ -1,4 +1,4 @@
-use crate::{Aggregate, Command, CoreError, Event};
+use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
 use proto::tenant::{CreateTenant, TenantCreated};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -20,6 +20,23 @@ impl Command for CreateTenant {}
 // --- Events ---
 
 // Implement the marker trait for the event
+#[derive(Debug, Clone, PartialEq)]
+pub enum TenantEvent {
+    Created(TenantCreated),
+}
+
+impl DomainEvent for TenantEvent {
+    fn event_type(&self) -> String {
+        match self {
+            TenantEvent::Created(_) => "TenantCreated".to_string(),
+        }
+    }
+
+    fn event_version(&self) -> String {
+        "0.1.0".to_string()
+    }
+}
+
 impl Event for TenantCreated {}
 
 // --- Errors ---
@@ -38,7 +55,7 @@ pub enum TenantError {
 
 impl Aggregate for Tenant {
     type Command = CreateTenant;
-    type Event = TenantCreated;
+    type Event = TenantEvent;
     type Error = TenantError;
 
     fn aggregate_id(&self) -> &str {
@@ -53,9 +70,9 @@ impl Aggregate for Tenant {
     fn apply(&mut self, event: Self::Event) {
         #[allow(clippy::match_single_binding)]
         match event {
-            TenantCreated {
+            TenantEvent::Created(TenantCreated {
                 tenant_id, name, ..
-            } => {
+            }) => {
                 self.id = tenant_id;
                 self.name = name;
                 // Initialize other fields if necessary
@@ -96,7 +113,7 @@ impl Aggregate for Tenant {
             timestamp,
         };
 
-        Ok(vec![event])
+        Ok(vec![TenantEvent::Created(event)])
     }
 }
 
@@ -121,9 +138,9 @@ mod tests {
 
         #[allow(clippy::match_single_binding)]
         match &events[0] {
-            TenantCreated {
+            TenantEvent::Created(TenantCreated {
                 tenant_id, name, ..
-            } => {
+            }) => {
                 assert_eq!(tenant_id, &command.tenant_id);
                 assert_eq!(name, &command.name);
             }
@@ -134,11 +151,11 @@ mod tests {
     async fn test_create_tenant_already_exists() {
         let mut aggregate = Tenant::default();
         // Apply an initial event to simulate existing state
-        aggregate.apply(TenantCreated {
+        aggregate.apply(TenantEvent::Created(TenantCreated {
             tenant_id: "tenant-123".to_string(),
             name: "Existing VA".to_string(),
             timestamp: "0".to_string(),
-        });
+        }));
 
         let command = CreateTenant {
             tenant_id: "tenant-456".to_string(), // Different ID, but aggregate exists
@@ -192,7 +209,7 @@ mod tests {
         };
 
         assert_eq!(aggregate.version(), 0);
-        aggregate.apply(event.clone());
+        aggregate.apply(TenantEvent::Created(event.clone()));
 
         assert_eq!(aggregate.version(), 1);
         assert_eq!(aggregate.id, event.tenant_id);

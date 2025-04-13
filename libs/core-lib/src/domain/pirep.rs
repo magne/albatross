@@ -1,4 +1,4 @@
-use crate::{Aggregate, Command, CoreError, Event};
+use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
 use proto::pirep::{PirepSubmitted, SubmitPirep};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,11 +21,28 @@ pub struct Pirep {
 
 // --- Commands ---
 
-impl Command for SubmitPirep {} // Corrected casing
+impl Command for SubmitPirep {}
 
 // --- Events ---
 
-impl Event for PirepSubmitted {} // Corrected casing
+#[derive(Debug, Clone, PartialEq)]
+pub enum PirepEvent {
+    Submitted(PirepSubmitted),
+}
+
+impl DomainEvent for PirepEvent {
+    fn event_type(&self) -> String {
+        match self {
+            PirepEvent::Submitted(_) => "PirepSubmitted".to_string(),
+        }
+    }
+
+    fn event_version(&self) -> String {
+        "0.1.0".to_string()
+    }
+}
+
+impl Event for PirepSubmitted {}
 
 // --- Errors ---
 
@@ -44,7 +61,7 @@ pub enum PirepError {
 
 impl Aggregate for Pirep {
     type Command = SubmitPirep;
-    type Event = PirepSubmitted; // Event is the concrete type here
+    type Event = PirepEvent; // Event is the concrete type here
     type Error = PirepError;
 
     fn aggregate_id(&self) -> &str {
@@ -59,7 +76,7 @@ impl Aggregate for Pirep {
     fn apply(&mut self, event: Self::Event) {
         #[allow(clippy::match_single_binding)]
         match event {
-            PirepSubmitted {
+            PirepEvent::Submitted(PirepSubmitted {
                 // Corrected casing
                 pirep_id,
                 tenant_id,
@@ -71,7 +88,7 @@ impl Aggregate for Pirep {
                 flight_time_hours,
                 remarks,
                 ..
-            } => {
+            }) => {
                 self.id = pirep_id;
                 self.tenant_id = tenant_id;
                 self.user_id = user_id;
@@ -130,7 +147,7 @@ impl Aggregate for Pirep {
             timestamp,
         };
 
-        Ok(vec![event])
+        Ok(vec![PirepEvent::Submitted(event)])
     }
 }
 
@@ -165,13 +182,13 @@ mod tests {
 
         #[allow(clippy::match_single_binding)]
         match &events[0] {
-            PirepSubmitted {
+            PirepEvent::Submitted(PirepSubmitted {
                 pirep_id,
                 tenant_id,
                 user_id,
                 flight_time_hours,
                 ..
-            } => {
+            }) => {
                 // Corrected casing
                 assert_eq!(pirep_id, &command.pirep_id);
                 assert_eq!(tenant_id, &command.tenant_id);
@@ -184,7 +201,7 @@ mod tests {
     #[tokio::test]
     async fn test_submit_pirep_already_exists() {
         let mut aggregate = Pirep::default();
-        aggregate.apply(PirepSubmitted {
+        aggregate.apply(PirepEvent::Submitted(PirepSubmitted {
             // Corrected casing
             pirep_id: "pirep-1".to_string(),
             tenant_id: "tenant-1".to_string(),
@@ -196,7 +213,7 @@ mod tests {
             flight_time_hours: 2.5,
             remarks: "Smooth flight".to_string(),
             timestamp: "0".to_string(),
-        });
+        }));
 
         let command = SubmitPirep {
             // Corrected casing
@@ -282,7 +299,7 @@ mod tests {
         };
 
         assert_eq!(aggregate.version(), 0);
-        aggregate.apply(event.clone());
+        aggregate.apply(PirepEvent::Submitted(event.clone()));
 
         assert_eq!(aggregate.version(), 1);
         assert_eq!(aggregate.id, event.pirep_id);

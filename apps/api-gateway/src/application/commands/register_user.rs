@@ -1,7 +1,7 @@
 use crate::AppState;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
+    Aggregate, CommandHandler, CoreError, DomainEvent, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserError, UserEvent},
 };
 use prost::Message;
@@ -67,17 +67,12 @@ impl CommandHandler<RegisterUser> for RegisterUserHandler {
         let events_to_save: Vec<(String, Vec<u8>)> = events
             .iter()
             .map(|event| {
-                let event_type = match event {
-                    UserEvent::Registered(_) => "UserRegistered",
-                    _ => "UnknownUserEvent", // Should not happen here
-                }
-                .to_string();
                 let payload = match event {
                     UserEvent::Registered(e) => e.encode_to_vec(),
                     // Other variants not expected from RegisterUser command
                     _ => Vec::new(), // Or handle error
                 };
-                (event_type, payload)
+                (event.event_type(), payload)
             })
             .collect();
         // --- End Serialization ---
