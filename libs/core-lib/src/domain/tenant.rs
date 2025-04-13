@@ -1,5 +1,4 @@
 use crate::{Aggregate, Command, CoreError, Event};
-use async_trait::async_trait;
 use proto::tenant::{CreateTenant, TenantCreated};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -37,7 +36,6 @@ pub enum TenantError {
 
 // --- Aggregate Implementation ---
 
-#[async_trait]
 impl Aggregate for Tenant {
     type Command = CreateTenant;
     type Event = TenantCreated;
@@ -121,6 +119,7 @@ mod tests {
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
 
+        #[allow(clippy::match_single_binding)]
         match &events[0] {
             TenantCreated {
                 tenant_id, name, ..

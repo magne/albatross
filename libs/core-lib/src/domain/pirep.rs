@@ -1,5 +1,4 @@
 use crate::{Aggregate, Command, CoreError, Event};
-use async_trait::async_trait;
 use proto::pirep::{PirepSubmitted, SubmitPirep};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -43,7 +42,6 @@ pub enum PirepError {
 
 // --- Aggregate Implementation ---
 
-#[async_trait]
 impl Aggregate for Pirep {
     type Command = SubmitPirep;
     type Event = PirepSubmitted; // Event is the concrete type here
@@ -165,6 +163,7 @@ mod tests {
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
 
+        #[allow(clippy::match_single_binding)]
         match &events[0] {
             PirepSubmitted {
                 pirep_id,

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use std::error::Error as StdError;
+use std::{error::Error as StdError, future::Future};
 
 // Declare modules
 pub mod adapters;
@@ -95,7 +95,6 @@ pub trait Event: Send + Sync + 'static {
 }
 
 // Trait for aggregate roots
-#[async_trait]
 pub trait Aggregate: Send + Sync + Default {
     type Command: Command;
     // Event type associated with this aggregate (can be an enum)
@@ -111,7 +110,20 @@ pub trait Aggregate: Send + Sync + Default {
 
     /// Handle a command and produce events.
     /// This is where business logic and validation occur.
-    async fn handle(&self, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error>;
+    fn handle(
+        &self,
+        command: Self::Command,
+    ) -> impl Future<Output = Result<Vec<Self::Event>, Self::Error>> + Send;
+}
+
+// Port for handling commands
+pub trait CommandHandler<C: Command>: Send + Sync {
+    fn handle(&self, command: C) -> impl Future<Output = Result<(), CoreError>> + Send;
+}
+
+// Port for handling events (e.g., in projections)
+pub trait EventHandler<E: Event>: Send + Sync {
+    fn handle(&self, event: &E) -> impl Future<Output = Result<(), CoreError>> + Send;
 }
 
 // Port for interacting with the event store
@@ -129,18 +141,6 @@ pub trait Repository: Send + Sync {
         expected_version: u64,
         events: &[(String, Vec<u8>)], // Tuple of (event_type, payload)
     ) -> Result<(), CoreError>;
-}
-
-// Port for handling commands
-#[async_trait]
-pub trait CommandHandler<C: Command>: Send + Sync {
-    async fn handle(&self, command: C) -> Result<(), CoreError>;
-}
-
-// Port for handling events (e.g., in projections)
-#[async_trait]
-pub trait EventHandler<E: Event>: Send + Sync {
-    async fn handle(&self, event: &E) -> Result<(), CoreError>;
 }
 
 // Port for publishing events to a message bus

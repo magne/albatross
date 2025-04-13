@@ -1,5 +1,4 @@
 use crate::{Aggregate, Command, CoreError, Event};
-use async_trait::async_trait;
 use proto::user::{
     ApiKeyGenerated, ChangePassword, GenerateApiKey, LoginUser, PasswordChanged, RegisterUser,
     Role, UserLoggedIn, UserRegistered,
@@ -25,12 +24,32 @@ pub struct User {
 
 // --- Commands ---
 
+#[derive(Debug, Clone)]
+pub enum UserCommand {
+    Register(RegisterUser),
+    ChangePassword(ChangePassword),
+    GenerateApiKey(GenerateApiKey),
+    Login(LoginUser),
+}
+
+impl Command for UserCommand {}
+
 impl Command for RegisterUser {}
 impl Command for ChangePassword {}
 impl Command for GenerateApiKey {}
 impl Command for LoginUser {} // Note: Login might not directly modify aggregate state
 
 // --- Events ---
+
+#[derive(Debug, Clone)]
+pub enum UserEvent {
+    Registered(UserRegistered),
+    PasswordChanged(PasswordChanged),
+    ApiKeyGenerated(ApiKeyGenerated),
+    LoggedIn(UserLoggedIn),
+}
+
+impl Event for UserEvent {}
 
 impl Event for UserRegistered {}
 impl Event for PasswordChanged {}
@@ -59,7 +78,6 @@ pub enum UserError {
 
 // --- Aggregate Implementation ---
 
-#[async_trait]
 impl Aggregate for User {
     // Define which commands this aggregate handles directly
     // Note: LoginUser might be handled differently (e.g., by an auth service reading projections)
@@ -268,31 +286,6 @@ fn generate_timestamp() -> String {
         .unwrap_or_default()
 }
 
-// --- Command/Event Enums (Needed for Aggregate trait implementation) ---
-// These wrap the specific Protobuf types.
-
-#[derive(Debug, Clone)]
-pub enum UserCommand {
-    Register(RegisterUser),
-    ChangePassword(ChangePassword),
-    GenerateApiKey(GenerateApiKey),
-    Login(LoginUser),
-}
-
-// Implement the marker trait for the enum
-impl Command for UserCommand {}
-
-#[derive(Debug, Clone)]
-pub enum UserEvent {
-    Registered(UserRegistered),
-    PasswordChanged(PasswordChanged),
-    ApiKeyGenerated(ApiKeyGenerated),
-    LoggedIn(UserLoggedIn),
-}
-
-// Implement the marker trait for the enum
-impl Event for UserEvent {}
-
 // --- Tests ---
 #[cfg(test)]
 mod tests {
@@ -460,8 +453,7 @@ mod tests {
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
 
-        let key_id_generated: String;
-        match &events[0] {
+        let key_id_generated = match &events[0] {
             UserEvent::ApiKeyGenerated(ApiKeyGenerated {
                 user_id,
                 key_id,
@@ -473,10 +465,10 @@ mod tests {
                 assert_eq!(key_name, "Test Key");
                 assert!(!key_id.is_empty());
                 assert!(!api_key_hash.is_empty());
-                key_id_generated = key_id.clone(); // Save for apply check
+                key_id.clone() // Save for apply check
             }
             _ => panic!("Expected ApiKeyGenerated event"),
-        }
+        };
 
         // Test apply
         aggregate.apply(events[0].clone());

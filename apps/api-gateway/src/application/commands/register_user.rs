@@ -1,5 +1,4 @@
 use crate::AppState;
-use async_trait::async_trait;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
     Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
@@ -29,7 +28,6 @@ impl RegisterUserHandler {
     }
 }
 
-#[async_trait]
 impl CommandHandler<RegisterUser> for RegisterUserHandler {
     async fn handle(&self, command: RegisterUser) -> Result<(), CoreError> {
         // 1. Load Aggregate (Not needed for RegisterUser)

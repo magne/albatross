@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use core_lib::{
     Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserEvent},
@@ -27,7 +26,6 @@ impl ChangePasswordHandler {
     }
 }
 
-#[async_trait]
 impl CommandHandler<ChangePassword> for ChangePasswordHandler {
     async fn handle(&self, command: ChangePassword) -> Result<(), CoreError> {
         // 1. Load Aggregate

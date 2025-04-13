@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use core_lib::{
     Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserEvent},
@@ -40,7 +39,6 @@ impl GenerateApiKeyHandler {
     }
 }
 
-#[async_trait]
 impl CommandHandler<GenerateApiKey> for GenerateApiKeyHandler {
     // Return CoreError to match the trait definition
     async fn handle(&self, command: GenerateApiKey) -> Result<(), CoreError> {

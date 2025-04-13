@@ -1,5 +1,4 @@
 use crate::AppState;
-use async_trait::async_trait;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
     Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
@@ -29,7 +28,6 @@ impl CreateTenantHandler {
     }
 }
 
-#[async_trait]
 impl CommandHandler<CreateTenant> for CreateTenantHandler {
     async fn handle(&self, command: CreateTenant) -> Result<(), CoreError> {
         // 1. Load Aggregate (or check if exists - Create should fail if exists)
