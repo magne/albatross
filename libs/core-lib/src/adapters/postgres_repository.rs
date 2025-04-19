@@ -1,5 +1,6 @@
-use crate::{CoreError, Repository, StoredEventData};
+use crate::{CoreError, Repository};
 use async_trait::async_trait;
+use cqrs_es::persist::SerializedEvent;
 use sqlx::{PgPool, Row};
 
 // Define a structure to represent stored events matching DB schema
@@ -28,7 +29,7 @@ impl PostgresEventRepository {
 impl Repository for PostgresEventRepository {
     // Implement non-generic trait
     /// Load events for a specific aggregate instance.
-    async fn load(&self, aggregate_id: &str) -> Result<Vec<StoredEventData>, CoreError> {
+    async fn load(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError> {
         let table_name = "events"; // Placeholder
         let query = format!(
             "SELECT sequence, event_type, payload FROM {} WHERE aggregate_id = $1 ORDER BY sequence ASC",
@@ -43,10 +44,16 @@ impl Repository for PostgresEventRepository {
 
         let events = rows
             .into_iter()
-            .map(|row| StoredEventData {
-                sequence: row.sequence as u64,
-                event_type: row.event_type,
-                payload: row.payload,
+            .map(|row| {
+                SerializedEvent::new(
+                    aggregate_id.to_string(),
+                    row.sequence as usize,
+                    "".to_string(),
+                    row.event_type,
+                    "".to_string(),
+                    row.payload,
+                    vec![],
+                )
             })
             .collect();
         Ok(events)
@@ -56,7 +63,7 @@ impl Repository for PostgresEventRepository {
     async fn save(
         &self,
         aggregate_id: &str,
-        expected_version: u64,
+        expected_version: usize,
         events: &[(String, Vec<u8>)], // Takes (event_type, payload) tuples
     ) -> Result<(), CoreError> {
         if events.is_empty() {
@@ -81,11 +88,11 @@ impl Repository for PostgresEventRepository {
             .await
             .map_err(|e| CoreError::Infrastructure(Box::new(e)))?;
 
-        let current_version: u64 = match current_version_row {
+        let current_version: usize = match current_version_row {
             Some(row) => row
                 .try_get::<Option<i64>, _>(0)
                 .map_err(|e| CoreError::Infrastructure(Box::new(e)))?
-                .map(|v| v as u64)
+                .map(|v| v as usize)
                 .unwrap_or(0),
             None => 0,
         };

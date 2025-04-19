@@ -4,6 +4,7 @@ members = [
     "apps/api-gateway",
     "apps/projection-worker",
     "libs/core-lib",
+    "libs/es",
     "libs/proto",
 ]
 
@@ -13,6 +14,7 @@ edition = "2024"
 
 [workspace.dependencies]
 core-lib = { version = "0.1.0", path = "libs/core-lib" }
+cqrs-es = { version = "0.1.0", path = "libs/es" }
 proto = { version = "0.1.0", path = "libs/proto" }
 
 async-trait = "0.1"

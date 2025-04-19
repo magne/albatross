@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use cqrs_es::persist::SerializedEvent;
+use cqrs_es::DomainEvent;
 use std::{error::Error as StdError, fmt::Debug, future::Future};
 
 // Declare modules
@@ -13,7 +15,7 @@ pub enum CoreError {
     #[error("Command validation failed: {0}")]
     Validation(String),
     #[error("Concurrency conflict: Expected version {expected}, found {actual}")]
-    Concurrency { expected: u64, actual: u64 },
+    Concurrency { expected: usize, actual: usize },
     #[error("Serialization error: {0}")]
     Serialization(String),
     #[error("Deserialization error: {0}")]
@@ -76,14 +78,6 @@ impl From<domain::pirep::PirepError> for CoreError {
     }
 }
 
-/// Data structure representing a stored event retrieved from persistence.
-#[derive(Debug, Clone)]
-pub struct StoredEventData {
-    pub sequence: u64,
-    pub event_type: String,
-    pub payload: Vec<u8>,
-}
-
 // Marker trait for commands
 pub trait Command: Send + Sync + 'static {}
 
@@ -94,15 +88,11 @@ pub trait Event: Send + Sync + 'static {
     // fn event_version(&self) -> u16;
 }
 
-pub trait DomainEvent: Debug + Clone + PartialEq + Send + Sync {
-    /// A name specifying the event, used for event upcasting.
-    fn event_type(&self) -> String;
-    /// A version of the `event_type`, used for event upcasting.
-    fn event_version(&self) -> String;
-}
-
 // Trait for aggregate roots
 pub trait Aggregate: Send + Sync + Default {
+    /// The aggregate type is used as the unique identifier for this aggregate and its events.
+    /// This is used for persisting the events and snapshots to a database.
+    const TYPE: &'static str;
     type Command: Command;
     // Event type associated with this aggregate (can be an enum)
     // type Event: Event + Clone + Send + Sync + Unpin + 'static; // Removed Message + Default bounds
@@ -110,7 +100,7 @@ pub trait Aggregate: Send + Sync + Default {
     type Error: From<CoreError>; // Aggregates define their specific error type
 
     fn aggregate_id(&self) -> &str;
-    fn version(&self) -> u64;
+    fn version(&self) -> usize;
 
     /// Apply an event to mutate the aggregate's state.
     /// This should not fail if the event is valid for the current state.
@@ -139,14 +129,14 @@ pub trait EventHandler<E: Event>: Send + Sync {
 pub trait Repository: Send + Sync {
     /// Load events for a specific aggregate instance.
     /// Returns raw event data (payload + metadata).
-    async fn load(&self, aggregate_id: &str) -> Result<Vec<StoredEventData>, CoreError>;
+    async fn load(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError>;
 
     /// Save new events for an aggregate instance, handling concurrency.
     /// Takes raw event data (type string + payload bytes).
     async fn save(
         &self,
         aggregate_id: &str,
-        expected_version: u64,
+        expected_version: usize,
         events: &[(String, Vec<u8>)], // Tuple of (event_type, payload)
     ) -> Result<(), CoreError>;
 }

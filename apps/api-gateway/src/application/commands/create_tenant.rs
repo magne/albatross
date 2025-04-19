@@ -1,9 +1,10 @@
 use crate::AppState;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, DomainEvent, EventPublisher, Repository,
+    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
     domain::tenant::{Tenant, TenantError, TenantEvent},
 };
+use cqrs_es::DomainEvent;
 use prost::Message;
 use proto::tenant::CreateTenant;
 use serde::Deserialize;

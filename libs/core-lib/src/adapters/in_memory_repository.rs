@@ -1,5 +1,6 @@
-use crate::{CoreError, Repository, StoredEventData}; // Removed Aggregate
+use crate::{CoreError, Repository}; // Removed Aggregate
 use async_trait::async_trait;
+use cqrs_es::persist::SerializedEvent;
 use dashmap::DashMap;
 use std::sync::Arc;
 
@@ -8,13 +9,13 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Default)]
 pub struct InMemoryEventRepository {
     // Store: Aggregate ID -> (Current Version, Vec<StoredEventData>)
-    store: Arc<DashMap<String, (u64, Vec<StoredEventData>)>>,
+    store: Arc<DashMap<String, (usize, Vec<SerializedEvent>)>>,
 }
 
 #[async_trait]
 impl Repository for InMemoryEventRepository {
     /// Load events for a specific aggregate instance.
-    async fn load(&self, aggregate_id: &str) -> Result<Vec<StoredEventData>, CoreError> {
+    async fn load(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError> {
         match self.store.get(aggregate_id) {
             Some(entry) => Ok(entry.value().1.clone()), // Clone the StoredEventData vector
             None => Ok(Vec::new()),
@@ -25,7 +26,7 @@ impl Repository for InMemoryEventRepository {
     async fn save(
         &self,
         aggregate_id: &str,
-        expected_version: u64,
+        expected_version: usize,
         events: &[(String, Vec<u8>)], // Takes (event_type, payload) tuples
     ) -> Result<(), CoreError> {
         if events.is_empty() {
@@ -50,11 +51,15 @@ impl Repository for InMemoryEventRepository {
         // Append new events and update version
         let mut next_sequence = *current_version + 1;
         for (event_type, payload) in events {
-            existing_events.push(StoredEventData {
-                sequence: next_sequence,
-                event_type: event_type.clone(),
-                payload: payload.clone(),
-            });
+            existing_events.push(SerializedEvent::new(
+                aggregate_id.to_string(),
+                next_sequence,
+                "".to_string(),
+                event_type.clone(),
+                "".to_string(),
+                payload.clone(),
+                vec![],
+            ));
             next_sequence += 1;
         }
         *current_version = next_sequence - 1; // Update version to the last sequence number used

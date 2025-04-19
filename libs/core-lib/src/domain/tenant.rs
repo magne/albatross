@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Default, Clone)]
 pub struct Tenant {
     id: String,
-    version: u64,
+    version: usize,
     name: String,
     // Add other tenant state fields here
 }
@@ -54,6 +54,7 @@ pub enum TenantError {
 // --- Aggregate Implementation ---
 
 impl Aggregate for Tenant {
+    const TYPE: &'static str = "tenant";
     type Command = CreateTenant;
     type Event = TenantEvent;
     type Error = TenantError;
@@ -62,7 +63,7 @@ impl Aggregate for Tenant {
         &self.id
     }
 
-    fn version(&self) -> u64 {
+    fn version(&self) -> usize {
         self.version
     }
 

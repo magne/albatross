@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Default, Clone)]
 pub struct User {
     id: String,
-    version: u64,
+    version: usize,
     username: String,
     email: String,
     #[allow(dead_code)] // Not read within aggregate; used by external auth logic
@@ -92,6 +92,7 @@ pub enum UserError {
 // --- Aggregate Implementation ---
 
 impl Aggregate for User {
+    const TYPE: &'static str = "user";
     // Define which commands this aggregate handles directly
     // Note: LoginUser might be handled differently (e.g., by an auth service reading projections)
     // but we include it here if the aggregate needs to emit UserLoggedIn event.
@@ -103,7 +104,7 @@ impl Aggregate for User {
         &self.id
     }
 
-    fn version(&self) -> u64 {
+    fn version(&self) -> usize {
         self.version
     }
 

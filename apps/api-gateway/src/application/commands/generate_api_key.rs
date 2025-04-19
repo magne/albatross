@@ -1,7 +1,8 @@
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, DomainEvent, EventPublisher, Repository,
+    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserEvent},
 };
+use cqrs_es::DomainEvent;
 use prost::Message;
 use proto::user::{ApiKeyGenerated, GenerateApiKey, PasswordChanged, UserLoggedIn, UserRegistered};
 use std::sync::Arc;

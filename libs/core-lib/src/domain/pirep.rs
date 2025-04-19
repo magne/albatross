@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Default, Clone)]
 pub struct Pirep {
     id: String,
-    version: u64,
+    version: usize,
     tenant_id: String,
     user_id: String,
     aircraft_id: String,
@@ -60,6 +60,7 @@ pub enum PirepError {
 // --- Aggregate Implementation ---
 
 impl Aggregate for Pirep {
+    const TYPE: &'static str = "pirep";
     type Command = SubmitPirep;
     type Event = PirepEvent; // Event is the concrete type here
     type Error = PirepError;
@@ -68,7 +69,7 @@ impl Aggregate for Pirep {
         &self.id
     }
 
-    fn version(&self) -> u64 {
+    fn version(&self) -> usize {
         self.version
     }
 
