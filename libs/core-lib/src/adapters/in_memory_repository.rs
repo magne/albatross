@@ -85,6 +85,7 @@ mod tests {
                     UserEvent::Registered(_) => "UserRegistered",
                     UserEvent::PasswordChanged(_) => "PasswordChanged",
                     UserEvent::ApiKeyGenerated(_) => "ApiKeyGenerated",
+                    UserEvent::ApiKeyRevoked(_) => "ApiKeyRevoked", // Added
                     UserEvent::LoggedIn(_) => "UserLoggedIn",
                 }
                 .to_string();
@@ -92,6 +93,7 @@ mod tests {
                     UserEvent::Registered(e) => e.encode_to_vec(),
                     UserEvent::PasswordChanged(e) => e.encode_to_vec(),
                     UserEvent::ApiKeyGenerated(e) => e.encode_to_vec(),
+                    UserEvent::ApiKeyRevoked(e) => e.encode_to_vec(), // Added
                     UserEvent::LoggedIn(e) => e.encode_to_vec(),
                 };
                 (event_type, payload)

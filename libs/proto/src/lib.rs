@@ -23,6 +23,6 @@ mod tests {
     // Basic compilation check - can add more specific tests later
     #[test]
     fn it_compiles() {
-        assert!(true);
+        // assert!(true); // Removed redundant assertion flagged by clippy
     }
 }

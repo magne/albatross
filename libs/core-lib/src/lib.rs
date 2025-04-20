@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use cqrs_es::persist::SerializedEvent;
 use cqrs_es::DomainEvent;
-use std::{error::Error as StdError, fmt::Debug, future::Future};
+use std::{error::Error as StdError, fmt::Debug, future::Future, marker::PhantomData};
 
 // Declare modules
 pub mod adapters;
@@ -12,6 +12,8 @@ pub mod domain;
 pub enum CoreError {
     #[error("Aggregate not found: {0}")]
     NotFound(String),
+    #[error("Aggregate already exists: {0}")]
+    AlreadyExists(String),
     #[error("Command validation failed: {0}")]
     Validation(String),
     #[error("Concurrency conflict: Expected version {expected}, found {actual}")]
@@ -48,6 +50,9 @@ impl From<domain::user::UserError> for CoreError {
             domain::user::UserError::InvalidPassword => {
                 CoreError::Unauthorized("Invalid password".into())
             } // Map to Unauthorized
+            domain::user::UserError::ApiKeyNotFound(key_id) => {
+                CoreError::NotFound(format!("API Key not found: {}", key_id))
+            } // Or map to Unauthorized depending on context
         }
     }
 }
@@ -123,6 +128,66 @@ pub trait CommandHandler<C: Command>: Send + Sync {
 pub trait EventHandler<E: Event>: Send + Sync {
     fn handle(&self, event: &E) -> impl Future<Output = Result<(), CoreError>> + Send;
 }
+
+pub trait EventStore<A>: Send + Sync
+where
+    A: Aggregate,
+{
+    fn load_events(
+        &self,
+        aggregate_id: &str,
+    ) -> impl Future<Output = Result<Vec<SerializedEvent>, CoreError>> + Send;
+
+    fn commit(
+        &self,
+        aggregate_id: &str,
+        expected_version: usize,
+        events: &[(String, Vec<u8>)],
+    ) -> impl Future<Output = Result<(), CoreError>> + Send;
+}
+
+pub struct PersistedEventStore<R, A>
+where
+    R: Repository,
+    A: Aggregate + Send + Sync,
+{
+    repo: R,
+    _phantom: PhantomData<A>,
+}
+
+impl<R, A> PersistedEventStore<R, A>
+where
+    R: Repository,
+    A: Aggregate + Send + Sync,
+{
+    pub fn new_event_store(repo: R) -> Self {
+        Self {
+            repo,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<R, A> EventStore<A> for PersistedEventStore<R, A>
+where
+    R: Repository,
+    A: Aggregate + Send + Sync,
+{
+    async fn load_events(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError> {
+        self.repo.load(aggregate_id).await
+    }
+
+    async fn commit(
+        &self,
+        aggregate_id: &str,
+        expected_version: usize,
+        events: &[(String, Vec<u8>)],
+    ) -> Result<(), CoreError> {
+        // Corrected return type
+        self.repo.save(aggregate_id, expected_version, events).await
+    }
+}
+// Extra closing brace removed.
 
 // Port for interacting with the event store
 #[async_trait]

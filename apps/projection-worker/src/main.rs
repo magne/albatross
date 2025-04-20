@@ -15,7 +15,7 @@ use lapin::{
 use prost::Message;
 use proto::{
     tenant::TenantCreated,
-    user::{Role, UserRegistered},
+    user::{ApiKeyGenerated, ApiKeyRevoked, Role, UserRegistered}, // Added ApiKey events
 };
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -374,9 +374,25 @@ async fn handle_event(
             } // Convert CoreError to BoxError
             Err(e) => error!("Failed to decode UserRegistered: {}", e),
         },
-        // TODO: Add other event types (PasswordChanged, ApiKeyGenerated, PIREPSubmitted, etc.)
+        "ApiKeyGenerated" => match ApiKeyGenerated::decode(payload.as_slice()) {
+            Ok(event) => {
+                handle_api_key_generated(event, Arc::clone(&db_pool), Arc::clone(&publisher))
+                    .await
+                    .map_err(BoxError::from)?
+            }
+            Err(e) => error!("Failed to decode ApiKeyGenerated: {}", e),
+        },
+        "ApiKeyRevoked" => match ApiKeyRevoked::decode(payload.as_slice()) {
+            Ok(event) => {
+                handle_api_key_revoked(event, Arc::clone(&db_pool), Arc::clone(&publisher))
+                    .await
+                    .map_err(BoxError::from)?
+            }
+            Err(e) => error!("Failed to decode ApiKeyRevoked: {}", e),
+        },
+        // TODO: Add other event types (PasswordChanged, PIREPSubmitted, etc.)
         _ => {
-            warn!("Received unknown event type: {}", event_type); // Use correct variable name
+            warn!("Received unknown event type: {}", event_type);
         }
     }
     Ok(())
@@ -488,6 +504,131 @@ async fn handle_user_registered(
         .await?;
     info!(
         "Published UserRegistered notification to topic: {}",
+        notification_topic
+    );
+
+    Ok(())
+}
+
+async fn handle_api_key_generated(
+    event: ApiKeyGenerated,
+    db_pool: Arc<PgPool>,
+    publisher: Arc<dyn EventPublisher>,
+) -> Result<(), CoreError> {
+    info!(
+        "Projecting ApiKeyGenerated: UserID = {}, KeyID = {}, Name = {}",
+        event.user_id, event.key_id, event.key_name
+    );
+
+    let user_uuid = Uuid::parse_str(&event.user_id).map_err(|e| {
+        CoreError::Deserialization(format!("Invalid user_id UUID: {} - {}", event.user_id, e))
+    })?;
+    // Assuming tenant_id might be associated with the user, fetch it if needed or pass if available in event
+    // For now, let's assume we might need to look it up or it's nullable in the keys table.
+    // Fetching tenant_id from users table for denormalization:
+    // Use event.user_id (String) in the WHERE clause, cast placeholder
+    let tenant_id_row = sqlx::query!(
+        "SELECT tenant_id::TEXT FROM users WHERE user_id = $1::VARCHAR", // Select as TEXT, Cast $1
+        event.user_id // Pass the original String ID
+    )
+    .fetch_optional(db_pool.as_ref())
+    .await
+    .map_err(|e| CoreError::Infrastructure(Box::new(e)))?;
+
+    // Fetch as Option<String>, then parse to Option<Uuid>
+    let tenant_uuid: Option<Uuid> = tenant_id_row
+        .and_then(|row| row.tenant_id) // Get Option<String>
+        .map(|id_str| Uuid::parse_str(&id_str)) // Map String to Result<Uuid, _>
+        .transpose() // Convert Option<Result<Uuid, _>> to Result<Option<Uuid>, _>
+        .map_err(|e| {
+            CoreError::Deserialization(format!("Invalid tenant_id UUID fetched from DB: {}", e))
+        })?;
+
+    sqlx::query!(
+        "INSERT INTO user_api_keys (key_id, user_id, tenant_id, key_name, api_key_hash, created_at)
+         VALUES ($1, $2::Uuid, $3::Uuid, $4, $5, NOW())",
+        event.key_id,
+        user_uuid,
+        tenant_uuid, // Insert fetched tenant_id
+        event.key_name,
+        event.api_key_hash // Use the hash from the event
+    )
+    .execute(db_pool.as_ref())
+    .await
+    .map_err(|e| CoreError::Infrastructure(Box::new(e)))?;
+
+    info!(
+        "API Key {} for user {} inserted into read model.",
+        event.key_id, event.user_id
+    );
+
+    // Publish notification
+    let notification_topic = format!("user:{}:apikeys", event.user_id);
+    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize ApiKeyGenerated: {}", e))
+    })?;
+    publisher
+        .publish(
+            &notification_topic,
+            "ApiKeyGenerated",
+            &notification_payload,
+        )
+        .await?;
+    info!(
+        "Published ApiKeyGenerated notification to topic: {}",
+        notification_topic
+    );
+
+    Ok(())
+}
+
+async fn handle_api_key_revoked(
+    event: ApiKeyRevoked,
+    db_pool: Arc<PgPool>,
+    publisher: Arc<dyn EventPublisher>,
+) -> Result<(), CoreError> {
+    info!(
+        "Projecting ApiKeyRevoked: UserID = {}, KeyID = {}",
+        event.user_id, event.key_id
+    );
+
+    // No need to parse user_id as UUID here unless we need it for validation/logging
+    // key_id is the primary key for the update
+
+    let result = sqlx::query!(
+        // Compare user_id (VARCHAR) with the String parameter $2
+        "UPDATE user_api_keys SET revoked_at = NOW() WHERE key_id = $1 AND user_id = $2",
+        event.key_id,
+        event.user_id // Pass the user_id String directly
+    )
+    .execute(db_pool.as_ref())
+    .await
+    .map_err(|e| CoreError::Infrastructure(Box::new(e)))?;
+
+    if result.rows_affected() == 0 {
+        warn!(
+            "API Key {} not found or already revoked for user {}.",
+            event.key_id, event.user_id
+        );
+        // Decide if this should be an error or just a warning
+        // return Err(CoreError::NotFound(format!("API Key {} not found for user {}", event.key_id, event.user_id)));
+    } else {
+        info!(
+            "API Key {} for user {} marked as revoked in read model.",
+            event.key_id, event.user_id
+        );
+    }
+
+    // Publish notification
+    let notification_topic = format!("user:{}:apikeys", event.user_id);
+    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize ApiKeyRevoked: {}", e))
+    })?;
+    publisher
+        .publish(&notification_topic, "ApiKeyRevoked", &notification_payload)
+        .await?;
+    info!(
+        "Published ApiKeyRevoked notification to topic: {}",
         notification_topic
     );
 

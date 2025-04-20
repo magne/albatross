@@ -90,6 +90,18 @@ impl CommandHandler<ChangePassword> for ChangePasswordHandler {
                         }
                     }
                 }
+                "ApiKeyRevoked" => {
+                    // Need ApiKeyRevoked proto type for decoding
+                    match proto::user::ApiKeyRevoked::decode(stored_event.payload.as_slice()) {
+                        Ok(e) => user.apply(UserEvent::ApiKeyRevoked(e)),
+                        Err(err) => {
+                            return Err(CoreError::Deserialization(format!(
+                                "Failed to decode ApiKeyRevoked: {}",
+                                err
+                            )));
+                        }
+                    }
+                }
                 _ => {
                     // Log or handle unknown event types if necessary
                     tracing::warn!(
@@ -123,6 +135,7 @@ impl CommandHandler<ChangePassword> for ChangePasswordHandler {
                     UserEvent::Registered(e) => e.encode_to_vec(),
                     UserEvent::PasswordChanged(e) => e.encode_to_vec(),
                     UserEvent::ApiKeyGenerated(e) => e.encode_to_vec(),
+                    UserEvent::ApiKeyRevoked(e) => e.encode_to_vec(), // Added
                     UserEvent::LoggedIn(e) => e.encode_to_vec(),
                 };
                 (event.event_type(), payload)

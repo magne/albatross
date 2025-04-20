@@ -1,15 +1,18 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 6 completed. Ready to start Step 7 (API Key Authentication).
+* **Current Status:** Phase 1, Step 7 completed. Ready to start Step 8 (Role-Based Authorization).
 * **Completed Features/Milestones:**
+  * **Phase 1, Step 7:**
+    * Implemented API key generation, authentication (cache-based), and revocation in `api-gateway`.
+    * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
+    * Implemented `GenerateApiKeyHandler` (returns plain key once, stores hash in aggregate, populates cache).
+    * Implemented `RevokeApiKeyHandler` (stores event in aggregate, invalidates cache entries).
+    * Implemented `api_key_auth` middleware using direct cache lookup.
+    * Added integration tests (`api_key_routes.rs`) for the full lifecycle.
+    * Refined logging to avoid exposing sensitive key material.
   * **Phase 1, Step 6:**
     * Successfully implemented Projection Worker with RabbitMQ Consumer, PostgreSQL writes, and Redis notifications.
-    * Fixed `sqlx` offline query compilation by:
-      * Installing `sqlx-cli`
-      * Renaming migration file from `V1__initial_read_models.sql` to `01__initial_read_models.sql`
-      * Running migrations with `cargo sqlx migrate run`
-      * Adding type hints (`::Uuid`) to SQL queries
-      * Generating offline query data with `cargo sqlx prepare --workspace`
+    * Fixed `sqlx` offline query compilation issues.
     * Verified all tests pass successfully.
   * **Phase 1, Step 5:**
     * Implemented real infrastructure adapters (`PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`) in `libs/core-lib`.
@@ -49,18 +52,18 @@
     * Set up basic GitHub Actions CI workflow (`.github/workflows/ci.yml`).
     * Implemented basic frontend asset embedding in `api-gateway` using `rust-embed`.
 
-* **Work In Progress:** Implementing API Key Authentication (Step 7).
+* **Work In Progress:** None. Ready for Phase 1, Step 8.
 
-* **Upcoming Work (Phase 1, Step 7):**
-  * Enhance User aggregate with API key revocation support.
-  * Implement API key authentication middleware in `api-gateway`.
-  * Add API key management endpoints to `api-gateway`.
-  * Update projection worker to handle API key events.
-  * Update database schema for API key storage.
-  * (Subsequent Steps): Role-based authorization, containerization, infrastructure setup, testing.
+* **Upcoming Work (Phase 1, Step 8):**
+  * Define basic roles (e.g., PlatformAdmin, TenantAdmin, Pilot).
+  * Enhance aggregates (User, Tenant) to store/manage roles.
+  * Update projections and read models to include role information.
+  * Implement authorization logic (e.g., middleware or checks within handlers) in `api-gateway` based on roles extracted from authenticated user context (initially from API key, later JWT).
+  * Add tests for role-based access control.
+  * (Subsequent Steps): Containerization, infrastructure setup, testing.
 
 * **Known Issues/Bugs:** None specific yet.
-  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement.
+  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. `LoginUser` command/handler flow needs implementation/refinement.
 
 * **Decision Log:** (Summary of key decisions from initial planning & recent updates)
   * Project Name: Albatross (Finalized for now).
@@ -78,3 +81,4 @@
   * UI Components: Headless UI chosen for React.
   * Real-time: WebSockets included in Phase 1 MVP.
   * Migrations: `refinery` crate chosen, but using `sqlx-cli` for offline query preparation.
+  * API Key Auth: Cache-based lookup using plain text key. Revocation invalidates cache.

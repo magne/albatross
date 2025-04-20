@@ -1,12 +1,11 @@
-// Declare command handler modules
-pub mod change_password; // Added
+pub mod change_password;
 pub mod create_tenant;
-pub mod generate_api_key; // Added
+pub mod generate_api_key;
 pub mod register_user;
-// Add other command handler modules here later:
-// pub mod login_user; // Login might be handled differently
+pub mod revoke_api_key; // Added
 
-// Optional: Re-export handlers or command types if needed
-// pub use change_password::ChangePasswordHandler;
-// pub use register_user::RegisterUserHandler;
-// pub use create_tenant::CreateTenantHandler;
+pub use change_password::ChangePasswordHandler;
+pub use create_tenant::CreateTenantHandler;
+pub use generate_api_key::{GenerateApiKeyHandler, GenerateApiKeyInput}; // Added Input
+pub use register_user::RegisterUserHandler;
+pub use revoke_api_key::RevokeApiKeyHandler; // Added

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_api_keys (key_id, user_id, tenant_id, key_name, api_key_hash, created_at)\n         VALUES ($1, $2::Uuid, $3::Uuid, $4, $5, NOW())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "00e176124d4a5d5ff7babda1a0b367c0a94734d58d13b044b64130bd0c6f0df5"
+}
