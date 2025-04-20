@@ -26,10 +26,12 @@
   4. Then implement code
 
 - List all assumptions and uncertainties you need to clear up before completing a task.
+- Don't assume you know the content of a file. Read it carefully.
 
 ## Thoughtful Development
 
 - Don't complete the analysis prematurely, continue analyzing even if you think you found a solution.
+- Think about 3 different ways to implement a solution. Then choose the best one, and explain why.
 - Rate confidence (1-10) before saving files, after saving, after rejections, and before task completion.
 
 ## Best Practices

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tenants (tenant_id, name, created_at, updated_at) VALUES ($1::Uuid, $2, NOW(), NOW())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a4f8225bc2cd7bb68e530235ad48b140178eda1c4fc0c97665492bd2714eac92"
+}

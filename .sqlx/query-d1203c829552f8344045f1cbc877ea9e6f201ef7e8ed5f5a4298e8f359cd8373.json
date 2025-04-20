@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO users (user_id, tenant_id, username, email, role, password_hash, created_at, updated_at)\n         VALUES ($1::Uuid, $2::Uuid, $3, $4, $5, $6, NOW(), NOW())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d1203c829552f8344045f1cbc877ea9e6f201ef7e8ed5f5a4298e8f359cd8373"
+}

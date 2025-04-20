@@ -1,7 +1,16 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 5 completed. Ready to start Step 6 (Projection DB Logic & Notifications).
+* **Current Status:** Phase 1, Step 6 completed. Ready to start Step 7 (API Key Authentication).
 * **Completed Features/Milestones:**
+  * **Phase 1, Step 6:**
+    * Successfully implemented Projection Worker with RabbitMQ Consumer, PostgreSQL writes, and Redis notifications.
+    * Fixed `sqlx` offline query compilation by:
+      * Installing `sqlx-cli`
+      * Renaming migration file from `V1__initial_read_models.sql` to `01__initial_read_models.sql`
+      * Running migrations with `cargo sqlx migrate run`
+      * Adding type hints (`::Uuid`) to SQL queries
+      * Generating offline query data with `cargo sqlx prepare --workspace`
+    * Verified all tests pass successfully.
   * **Phase 1, Step 5:**
     * Implemented real infrastructure adapters (`PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`) in `libs/core-lib`.
     * Added corresponding dependencies (`sqlx`, `lapin`, `redis-rs`, `testcontainers-rs`, `testcontainers-modules`) to `libs/core-lib`.
@@ -11,7 +20,7 @@
     * Verified `libs/core-lib` compiles successfully (with expected warnings).
   * **Phase 1, Step 4:**
     * Created `apps/projection-worker` service skeleton and added to workspace.
-    * Defined initial read model schemas (`tenants`, `users`) and migration file (`V1__initial_read_models.sql`).
+    * Defined initial read model schemas (`tenants`, `users`) and migration file.
     * Embedded migrations in `projection-worker` using `refinery`.
     * Implemented basic event consumption loop in `projection-worker` using `InMemoryEventBus`.
     * Implemented placeholder projection handlers (`handle_tenant_created`, `handle_user_registered`).
@@ -39,17 +48,20 @@
     * Created placeholder for Helm infrastructure definitions (`infra/helm/README.md`).
     * Set up basic GitHub Actions CI workflow (`.github/workflows/ci.yml`).
     * Implemented basic frontend asset embedding in `api-gateway` using `rust-embed`.
-* **Work In Progress:** None.
-* **Upcoming Work (Phase 1, Step 6 Start):**
-  * Set up database connection pool (`sqlx::PgPool`) in `projection-worker`.
-  * Run database migrations on startup in `projection-worker`.
-  * Update projection handlers (`handle_tenant_created`, `handle_user_registered`) to perform actual DB INSERT/UPDATE operations using `sqlx`.
-  * Implement Redis Pub/Sub notification publishing from projection handlers using the `RedisEventBus` adapter.
-  * (Subsequent Steps): Implement API query endpoints, caching, WebSocket logic, Frontend UI, PIREP flow, Admin setup, Docker setup, Testing, Documentation.
-* **Upcoming Work (Phase 1.5):**
-  * See `doc/plans/phase-1.5-plan.md` for details on MVP refinement, Auth/Authz, multi-frontend implementation, etc.
+
+* **Work In Progress:** Implementing API Key Authentication (Step 7).
+
+* **Upcoming Work (Phase 1, Step 7):**
+  * Enhance User aggregate with API key revocation support.
+  * Implement API key authentication middleware in `api-gateway`.
+  * Add API key management endpoints to `api-gateway`.
+  * Update projection worker to handle API key events.
+  * Update database schema for API key storage.
+  * (Subsequent Steps): Role-based authorization, containerization, infrastructure setup, testing.
+
 * **Known Issues/Bugs:** None specific yet.
-  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement. DB interaction and Redis publishing in projection worker are placeholders (to be addressed in Step 6).
+  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. Returning plain API key from `GenerateApiKeyHandler` needs design consideration. `LoginUser` command/handler flow needs implementation/refinement.
+
 * **Decision Log:** (Summary of key decisions from initial planning & recent updates)
   * Project Name: Albatross (Finalized for now).
   * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
@@ -65,4 +77,4 @@
   * Initial Setup: Platform Admin created on first run with logged one-time password.
   * UI Components: Headless UI chosen for React.
   * Real-time: WebSockets included in Phase 1 MVP.
-  * Migrations: `refinery` crate chosen.
+  * Migrations: `refinery` crate chosen, but using `sqlx-cli` for offline query preparation.

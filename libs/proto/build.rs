@@ -31,7 +31,15 @@ fn main() -> Result<()> {
     }
 
     // Configure prost_build
-    prost_build::compile_protos(&proto_files, &[proto_dir])?;
+    let mut config = prost_build::Config::new();
+
+    // Add serde::Serialize derive to all generated types
+    config.type_attribute(".", "#[derive(serde::Serialize)]");
+    // Optionally, add Deserialize if needed later:
+    // config.type_attribute(".", "#[derive(serde::Deserialize)]");
+
+    // Compile the protos using the configured builder
+    config.compile_protos(&proto_files, &[proto_dir])?;
 
     Ok(())
 }
