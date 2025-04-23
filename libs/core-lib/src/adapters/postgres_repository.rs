@@ -139,7 +139,7 @@ impl Repository for PostgresEventRepository {
 mod tests {
     use super::*;
     use crate::domain::user::{User, UserCommand, UserEvent};
-    use crate::Aggregate;
+    use cqrs_es::Aggregate;
     use prost::Message;
     use proto::user::{PasswordChanged, RegisterUser, UserRegistered};
     use sqlx::postgres::PgPoolOptions;
@@ -226,7 +226,10 @@ mod tests {
             tenant_id: Some("tenant-pg-test".to_string()),
         });
         let default_user = User::default();
-        let events_domain = default_user.handle(command).await.expect("Handle failed");
+        let events_domain = default_user
+            .handle(command, &())
+            .await
+            .expect("Handle failed");
         // --- End Test Setup ---
 
         let events_to_save = serialize_events(&events_domain);

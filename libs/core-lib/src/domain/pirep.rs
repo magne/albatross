@@ -1,4 +1,5 @@
-use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
+use crate::{Command, CoreError, DomainEvent, Event};
+use cqrs_es::Aggregate;
 use proto::pirep::{PirepSubmitted, SubmitPirep};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -20,6 +21,11 @@ pub struct Pirep {
 }
 
 // --- Commands ---
+
+#[derive(Debug, Clone)]
+pub enum PirepCommand {
+    Submit(SubmitPirep),
+}
 
 impl Command for SubmitPirep {}
 
@@ -61,9 +67,10 @@ pub enum PirepError {
 
 impl Aggregate for Pirep {
     const TYPE: &'static str = "pirep";
-    type Command = SubmitPirep;
+    type Command = PirepCommand;
     type Event = PirepEvent; // Event is the concrete type here
     type Error = PirepError;
+    type Services = ();
 
     fn aggregate_id(&self) -> &str {
         &self.id
@@ -106,7 +113,21 @@ impl Aggregate for Pirep {
     }
 
     /// Handle commands and produce events.
-    async fn handle(&self, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
+    async fn handle(
+        &self,
+        command: Self::Command,
+        _service: &Self::Services,
+    ) -> Result<Vec<Self::Event>, Self::Error> {
+        match command {
+            PirepCommand::Submit(cmd) => self.handle_submit(cmd).await,
+        }
+    }
+}
+
+impl Pirep {
+    // --- Command Handlers ---
+
+    async fn handle_submit(&self, command: SubmitPirep) -> Result<Vec<PirepEvent>, PirepError> {
         // Validate command input
         if command.pirep_id.is_empty()
             || command.tenant_id.is_empty()
@@ -155,14 +176,14 @@ impl Aggregate for Pirep {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Aggregate;
+    use cqrs_es::Aggregate;
     // Use the corrected casing from the import
     use proto::pirep::{PirepSubmitted, SubmitPirep};
 
     #[tokio::test]
     async fn test_submit_pirep_command() {
         let aggregate = Pirep::default();
-        let command = SubmitPirep {
+        let command = PirepCommand::Submit(SubmitPirep {
             // Corrected casing
             pirep_id: "pirep-1".to_string(),
             tenant_id: "tenant-1".to_string(),
@@ -173,9 +194,9 @@ mod tests {
             flight_number: "VA123".to_string(),
             flight_time_hours: 2.5,
             remarks: "Smooth flight".to_string(),
-        };
+        });
 
-        let result = aggregate.handle(command.clone()).await;
+        let result = aggregate.handle(command.clone(), &()).await;
         assert!(result.is_ok());
 
         let events = result.unwrap();
@@ -190,7 +211,7 @@ mod tests {
                 flight_time_hours,
                 ..
             }) => {
-                // Corrected casing
+                let PirepCommand::Submit(command) = command;
                 assert_eq!(pirep_id, &command.pirep_id);
                 assert_eq!(tenant_id, &command.tenant_id);
                 assert_eq!(user_id, &command.user_id);
@@ -216,7 +237,7 @@ mod tests {
             timestamp: "0".to_string(),
         }));
 
-        let command = SubmitPirep {
+        let command = PirepCommand::Submit(SubmitPirep {
             // Corrected casing
             pirep_id: "pirep-2".to_string(), // Different ID, but aggregate exists
             tenant_id: "tenant-1".to_string(),
@@ -227,9 +248,9 @@ mod tests {
             flight_number: "VA456".to_string(),
             flight_time_hours: 2.1,
             remarks: "Return flight".to_string(),
-        };
+        });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             PirepError::AlreadyExists(id) => assert_eq!(id, "pirep-1"),
@@ -242,7 +263,7 @@ mod tests {
         let aggregate = Pirep::default();
 
         // Empty ID
-        let command_no_id = SubmitPirep {
+        let command_no_id = PirepCommand::Submit(SubmitPirep {
             // Corrected casing
             pirep_id: "".to_string(), // Empty
             tenant_id: "tenant-1".to_string(),
@@ -253,8 +274,8 @@ mod tests {
             flight_number: "VA123".to_string(),
             flight_time_hours: 2.5,
             remarks: "Smooth flight".to_string(),
-        };
-        let result_no_id = aggregate.handle(command_no_id).await;
+        });
+        let result_no_id = aggregate.handle(command_no_id, &()).await;
         assert!(result_no_id.is_err());
         match result_no_id.err().unwrap() {
             PirepError::InvalidInput(msg) => assert!(msg.contains("Missing required fields")),
@@ -262,7 +283,7 @@ mod tests {
         }
 
         // Zero flight time
-        let command_zero_time = SubmitPirep {
+        let command_zero_time = PirepCommand::Submit(SubmitPirep {
             // Corrected casing
             pirep_id: "pirep-1".to_string(),
             tenant_id: "tenant-1".to_string(),
@@ -273,8 +294,8 @@ mod tests {
             flight_number: "VA123".to_string(),
             flight_time_hours: 0.0, // Invalid
             remarks: "Smooth flight".to_string(),
-        };
-        let result_zero_time = aggregate.handle(command_zero_time).await;
+        });
+        let result_zero_time = aggregate.handle(command_zero_time, &()).await;
         assert!(result_zero_time.is_err());
         match result_zero_time.err().unwrap() {
             PirepError::InvalidInput(msg) => assert!(msg.contains("Flight time must be positive")),

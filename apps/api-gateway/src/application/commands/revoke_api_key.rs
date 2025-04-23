@@ -1,9 +1,9 @@
 use core_lib::Cache; // Added Cache import
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
+    CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserEvent},
 };
-use cqrs_es::DomainEvent;
+use cqrs_es::{Aggregate, DomainEvent};
 use prost::Message;
 use proto::user::{
     ApiKeyGenerated, ApiKeyRevoked, PasswordChanged, RevokeApiKey, UserLoggedIn, UserRegistered,
@@ -115,7 +115,7 @@ impl CommandHandler<RevokeApiKey> for RevokeApiKeyHandler {
 
         // 3. Execute command on the loaded aggregate instance
         // Use '?' directly - relies on From<UserError> for CoreError impl in core-lib
-        let resulting_events: Vec<UserEvent> = user.handle(aggregate_command).await?;
+        let resulting_events: Vec<UserEvent> = user.handle(aggregate_command, &()).await?;
 
         // --- Serialize Events for Saving ---
         let events_to_save: Vec<(String, Vec<u8>)> = resulting_events

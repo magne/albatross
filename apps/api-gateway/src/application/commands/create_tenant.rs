@@ -1,10 +1,10 @@
 use crate::AppState;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
-    domain::tenant::{Tenant, TenantError, TenantEvent},
+    CommandHandler, CoreError, EventPublisher, Repository,
+    domain::tenant::{Tenant, TenantCommand, TenantError, TenantEvent},
 };
-use cqrs_es::DomainEvent;
+use cqrs_es::{Aggregate, DomainEvent};
 use prost::Message;
 use proto::tenant::CreateTenant;
 use serde::Deserialize;
@@ -33,19 +33,23 @@ impl CommandHandler<CreateTenant> for CreateTenantHandler {
     async fn handle(&self, command: CreateTenant) -> Result<(), CoreError> {
         // 1. Load Aggregate (or check if exists - Create should fail if exists)
         // Similar to RegisterUser, the aggregate's handle method checks for existence.
+        let aggregate_command = TenantCommand::Create(command.clone());
 
         // 2. Execute command on a *default* aggregate instance for creation commands
         let default_tenant = Tenant::default();
-        let events = default_tenant.handle(command.clone()).await.map_err(|e| {
-            // Map TenantError to CoreError for the return type
-            match e {
-                TenantError::Core(ce) => ce,
-                TenantError::AlreadyExists(id) => {
-                    CoreError::Validation(format!("Tenant already exists: {}", id))
+        let events = default_tenant
+            .handle(aggregate_command, &())
+            .await
+            .map_err(|e| {
+                // Map TenantError to CoreError for the return type
+                match e {
+                    TenantError::Core(ce) => ce,
+                    TenantError::AlreadyExists(id) => {
+                        CoreError::Validation(format!("Tenant already exists: {}", id))
+                    }
+                    TenantError::InvalidInput(msg) => CoreError::Validation(msg),
                 }
-                TenantError::InvalidInput(msg) => CoreError::Validation(msg),
-            }
-        })?;
+            })?;
 
         // --- Serialize Events for Saving ---
         let events_to_save: Vec<(String, Vec<u8>)> = events

@@ -3,13 +3,12 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng}, // Removed unused PasswordHash, PasswordVerifier
 };
 use core_lib::{
-    Aggregate,
     CoreError,
     EventPublisher,
     Repository, // Removed unused CommandHandler
     domain::user::{User, UserCommand, UserEvent},
 };
-use cqrs_es::DomainEvent;
+use cqrs_es::{Aggregate, DomainEvent};
 use prost::Message;
 use proto::user::{ApiKeyGenerated, GenerateApiKey, PasswordChanged, UserLoggedIn, UserRegistered};
 use rand::distr::{Alphanumeric, SampleString}; // Corrected module name again
@@ -164,7 +163,7 @@ impl GenerateApiKeyHandler {
         });
 
         // 4. Execute command on the loaded aggregate instance
-        let resulting_events: Vec<UserEvent> = user.handle(aggregate_command).await?;
+        let resulting_events: Vec<UserEvent> = user.handle(aggregate_command, &()).await?;
 
         // --- Serialize Events for Saving ---
         let events_to_save: Vec<(String, Vec<u8>)> = resulting_events

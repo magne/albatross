@@ -1,4 +1,5 @@
-use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
+use crate::{Command, CoreError, DomainEvent, Event};
+use cqrs_es::Aggregate;
 use proto::user::{
     ApiKeyGenerated, ApiKeyRevoked, ChangePassword, GenerateApiKey, LoginUser, PasswordChanged,
     RegisterUser, RevokeApiKey, Role, UserLoggedIn, UserRegistered,
@@ -32,8 +33,6 @@ pub enum UserCommand {
     RevokeApiKey(RevokeApiKey),
     Login(LoginUser), // Login might be handled differently
 }
-
-impl Command for UserCommand {}
 
 impl Command for RegisterUser {}
 impl Command for ChangePassword {}
@@ -106,6 +105,7 @@ impl Aggregate for User {
     type Command = UserCommand;
     type Event = UserEvent;
     type Error = UserError;
+    type Services = ();
 
     fn aggregate_id(&self) -> &str {
         &self.id
@@ -156,7 +156,11 @@ impl Aggregate for User {
     }
 
     /// Handle commands and produce events.
-    async fn handle(&self, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
+    async fn handle(
+        &self,
+        command: Self::Command,
+        _service: &Self::Services,
+    ) -> Result<Vec<Self::Event>, Self::Error> {
         // Basic validation: Ensure aggregate exists for commands other than Register
         if self.version == 0 && !matches!(command, UserCommand::Register(_)) {
             return Err(UserError::NotFound(
@@ -344,7 +348,7 @@ fn generate_timestamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Aggregate;
+    use cqrs_es::Aggregate;
     use proto::user::Role;
 
     #[tokio::test]
@@ -359,7 +363,7 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()),
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
@@ -406,7 +410,7 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()),
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             UserError::AlreadyExists(id) => assert_eq!(id, "user-1"),
@@ -426,7 +430,7 @@ mod tests {
             tenant_id: None,
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         assert!(matches!(result.err().unwrap(), UserError::TenantIdRequired));
     }
@@ -443,7 +447,7 @@ mod tests {
             tenant_id: Some("tenant-1".to_string()), // PlatformAdmin should NOT have tenant_id
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             UserError::InvalidRole(msg) => assert!(msg.contains("PlatformAdmin cannot belong")),
@@ -469,7 +473,7 @@ mod tests {
             new_password_hash: "new_hashed_password".to_string(),
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
@@ -504,7 +508,7 @@ mod tests {
             api_key_hash: "test-hash".to_string(), // Added placeholder
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
@@ -562,7 +566,7 @@ mod tests {
             key_id: "key-to-revoke".to_string(),
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_ok());
         let events = result.unwrap();
         assert_eq!(events.len(), 1);
@@ -603,7 +607,7 @@ mod tests {
             key_id: "non-existent-key".to_string(),
         });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             UserError::ApiKeyNotFound(key_id) => assert_eq!(key_id, "non-existent-key"),

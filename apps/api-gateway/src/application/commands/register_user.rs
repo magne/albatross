@@ -1,10 +1,10 @@
 use crate::AppState;
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use core_lib::{
-    Aggregate, CommandHandler, CoreError, EventPublisher, Repository,
+    CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserError, UserEvent},
 };
-use cqrs_es::DomainEvent;
+use cqrs_es::{Aggregate, DomainEvent};
 use prost::Message;
 use proto::user::RegisterUser;
 use serde::Deserialize;
@@ -48,7 +48,7 @@ impl CommandHandler<RegisterUser> for RegisterUserHandler {
         let default_user = User::default();
         let events: Vec<UserEvent> =
             default_user
-                .handle(aggregate_command)
+                .handle(aggregate_command, &())
                 .await
                 .map_err(|e| match e {
                     UserError::Core(ce) => ce,

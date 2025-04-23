@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use cqrs_es::persist::SerializedEvent;
-use cqrs_es::DomainEvent;
-use std::{error::Error as StdError, fmt::Debug, future::Future, marker::PhantomData};
+use cqrs_es::persist::{PersistedEventRepository, PersistenceError, SerializedEvent};
+use cqrs_es::{Aggregate, DomainEvent};
+use std::{error::Error as StdError, future::Future};
 
 // Declare modules
 pub mod adapters;
@@ -86,38 +86,8 @@ impl From<domain::pirep::PirepError> for CoreError {
 // Marker trait for commands
 pub trait Command: Send + Sync + 'static {}
 
-// Marker trait for events (consider adding methods like event_id, event_name later)
-// Needs to be serializable/deserializable (likely via Protobuf)
-pub trait Event: Send + Sync + 'static {
-    // fn event_type(&self) -> &'static str;
-    // fn event_version(&self) -> u16;
-}
-
-// Trait for aggregate roots
-pub trait Aggregate: Send + Sync + Default {
-    /// The aggregate type is used as the unique identifier for this aggregate and its events.
-    /// This is used for persisting the events and snapshots to a database.
-    const TYPE: &'static str;
-    type Command: Command;
-    // Event type associated with this aggregate (can be an enum)
-    // type Event: Event + Clone + Send + Sync + Unpin + 'static; // Removed Message + Default bounds
-    type Event: DomainEvent;
-    type Error: From<CoreError>; // Aggregates define their specific error type
-
-    fn aggregate_id(&self) -> &str;
-    fn version(&self) -> usize;
-
-    /// Apply an event to mutate the aggregate's state.
-    /// This should not fail if the event is valid for the current state.
-    fn apply(&mut self, event: Self::Event);
-
-    /// Handle a command and produce events.
-    /// This is where business logic and validation occur.
-    fn handle(
-        &self,
-        command: Self::Command,
-    ) -> impl Future<Output = Result<Vec<Self::Event>, Self::Error>> + Send;
-}
+// Marker trait for events
+pub trait Event: Send + Sync + 'static {}
 
 // Port for handling commands
 pub trait CommandHandler<C: Command>: Send + Sync {
@@ -129,62 +99,52 @@ pub trait EventHandler<E: Event>: Send + Sync {
     fn handle(&self, event: &E) -> impl Future<Output = Result<(), CoreError>> + Send;
 }
 
-pub trait EventStore<A>: Send + Sync
-where
-    A: Aggregate,
-{
-    fn load_events(
-        &self,
-        aggregate_id: &str,
-    ) -> impl Future<Output = Result<Vec<SerializedEvent>, CoreError>> + Send;
-
-    fn commit(
-        &self,
-        aggregate_id: &str,
-        expected_version: usize,
-        events: &[(String, Vec<u8>)],
-    ) -> impl Future<Output = Result<(), CoreError>> + Send;
-}
-
-pub struct PersistedEventStore<R, A>
+pub struct PersistedEventRepo<R>
 where
     R: Repository,
-    A: Aggregate + Send + Sync,
 {
     repo: R,
-    _phantom: PhantomData<A>,
 }
 
-impl<R, A> PersistedEventStore<R, A>
+impl<R> PersistedEventRepo<R>
 where
     R: Repository,
-    A: Aggregate + Send + Sync,
 {
-    pub fn new_event_store(repo: R) -> Self {
-        Self {
-            repo,
-            _phantom: PhantomData,
-        }
+    pub fn new_event_repo(repo: R) -> Self {
+        Self { repo }
     }
 }
 
-impl<R, A> EventStore<A> for PersistedEventStore<R, A>
+impl<R> PersistedEventRepository for PersistedEventRepo<R>
 where
     R: Repository,
-    A: Aggregate + Send + Sync,
 {
-    async fn load_events(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError> {
-        self.repo.load(aggregate_id).await
-    }
-
-    async fn commit(
+    async fn get_events<A: Aggregate>(
         &self,
         aggregate_id: &str,
-        expected_version: usize,
-        events: &[(String, Vec<u8>)],
-    ) -> Result<(), CoreError> {
-        // Corrected return type
-        self.repo.save(aggregate_id, expected_version, events).await
+    ) -> Result<Vec<SerializedEvent>, cqrs_es::persist::PersistenceError> {
+        self.repo
+            .load(aggregate_id)
+            .await
+            .map_err(|e| PersistenceError::UnknownError(Box::new(e)))
+    }
+
+    async fn persist<A: Aggregate>(
+        &self,
+        events: &[SerializedEvent],
+    ) -> Result<(), PersistenceError> {
+        if events.is_empty() {
+            return Ok(());
+        }
+        let aggregate_id = events[0].aggregate_id.clone();
+        let mut evts = vec![];
+        for e in events {
+            evts.push((e.event_type.clone(), e.payload.clone()));
+        }
+        self.repo
+            .save(&aggregate_id, 0, &evts)
+            .await
+            .map_err(|e| PersistenceError::UnknownError(Box::new(e)))
     }
 }
 // Extra closing brace removed.

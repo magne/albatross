@@ -5,3 +5,8 @@ edition.workspace = true
 
 [lib]
 doctest = false
+
+[dependencies]
+async-trait.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "sync", "rt"] }

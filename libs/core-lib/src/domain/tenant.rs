@@ -1,4 +1,5 @@
-use crate::{Aggregate, Command, CoreError, DomainEvent, Event};
+use crate::{Command, CoreError, DomainEvent, Event};
+use cqrs_es::Aggregate;
 use proto::tenant::{CreateTenant, TenantCreated};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,7 +15,11 @@ pub struct Tenant {
 
 // --- Commands ---
 
-// Implement the marker trait for the command
+#[derive(Debug, Clone)]
+pub enum TenantCommand {
+    Create(CreateTenant),
+}
+
 impl Command for CreateTenant {}
 
 // --- Events ---
@@ -55,9 +60,10 @@ pub enum TenantError {
 
 impl Aggregate for Tenant {
     const TYPE: &'static str = "tenant";
-    type Command = CreateTenant;
+    type Command = TenantCommand;
     type Event = TenantEvent;
     type Error = TenantError;
+    type Services = ();
 
     fn aggregate_id(&self) -> &str {
         &self.id
@@ -83,7 +89,19 @@ impl Aggregate for Tenant {
     }
 
     /// Handle commands and produce events.
-    async fn handle(&self, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
+    async fn handle(
+        &self,
+        command: Self::Command,
+        _service: &Self::Services,
+    ) -> Result<Vec<Self::Event>, Self::Error> {
+        match command {
+            TenantCommand::Create(cmd) => self.handle_create(cmd).await,
+        }
+    }
+}
+
+impl Tenant {
+    async fn handle_create(&self, command: CreateTenant) -> Result<Vec<TenantEvent>, TenantError> {
         // Validate command input
         if command.tenant_id.is_empty() {
             return Err(TenantError::InvalidInput(
@@ -121,17 +139,17 @@ impl Aggregate for Tenant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Aggregate;
+    use cqrs_es::Aggregate;
 
     #[tokio::test]
     async fn test_create_tenant_command() {
         let aggregate = Tenant::default();
-        let command = CreateTenant {
+        let command = TenantCommand::Create(CreateTenant {
             tenant_id: "tenant-123".to_string(),
             name: "Test VA".to_string(),
-        };
+        });
 
-        let result = aggregate.handle(command.clone()).await;
+        let result = aggregate.handle(command.clone(), &()).await;
         assert!(result.is_ok());
 
         let events = result.unwrap();
@@ -142,6 +160,7 @@ mod tests {
             TenantEvent::Created(TenantCreated {
                 tenant_id, name, ..
             }) => {
+                let TenantCommand::Create(command) = command;
                 assert_eq!(tenant_id, &command.tenant_id);
                 assert_eq!(name, &command.name);
             }
@@ -158,12 +177,12 @@ mod tests {
             timestamp: "0".to_string(),
         }));
 
-        let command = CreateTenant {
+        let command = TenantCommand::Create(CreateTenant {
             tenant_id: "tenant-456".to_string(), // Different ID, but aggregate exists
             name: "New VA".to_string(),
-        };
+        });
 
-        let result = aggregate.handle(command).await;
+        let result = aggregate.handle(command, &()).await;
         assert!(result.is_err());
         match result.err().unwrap() {
             TenantError::AlreadyExists(id) => assert_eq!(id, "tenant-123"),
@@ -176,11 +195,11 @@ mod tests {
         let aggregate = Tenant::default();
 
         // Empty ID
-        let command_no_id = CreateTenant {
+        let command_no_id = TenantCommand::Create(CreateTenant {
             tenant_id: "".to_string(),
             name: "Test VA".to_string(),
-        };
-        let result_no_id = aggregate.handle(command_no_id).await;
+        });
+        let result_no_id = aggregate.handle(command_no_id, &()).await;
         assert!(result_no_id.is_err());
         match result_no_id.err().unwrap() {
             TenantError::InvalidInput(msg) => assert!(msg.contains("ID cannot be empty")),
@@ -188,11 +207,11 @@ mod tests {
         }
 
         // Empty Name
-        let command_no_name = CreateTenant {
+        let command_no_name = TenantCommand::Create(CreateTenant {
             tenant_id: "tenant-123".to_string(),
             name: "".to_string(),
-        };
-        let result_no_name = aggregate.handle(command_no_name).await;
+        });
+        let result_no_name = aggregate.handle(command_no_name, &()).await;
         assert!(result_no_name.is_err());
         match result_no_name.err().unwrap() {
             TenantError::InvalidInput(msg) => assert!(msg.contains("name cannot be empty")),
