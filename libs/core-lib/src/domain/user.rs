@@ -1,5 +1,6 @@
 use crate::{Command, CoreError, DomainEvent, Event};
 use cqrs_es::Aggregate;
+pub use proto::user::user_command::UserCommand;
 use proto::user::{
     ApiKeyGenerated, ApiKeyRevoked, ChangePassword, GenerateApiKey, LoginUser, PasswordChanged,
     RegisterUser, RevokeApiKey, Role, UserLoggedIn, UserRegistered,
@@ -24,15 +25,6 @@ pub struct User {
 }
 
 // --- Commands ---
-
-#[derive(Debug, Clone)]
-pub enum UserCommand {
-    Register(RegisterUser),
-    ChangePassword(ChangePassword),
-    GenerateApiKey(GenerateApiKey),
-    RevokeApiKey(RevokeApiKey),
-    Login(LoginUser), // Login might be handled differently
-}
 
 impl Command for RegisterUser {}
 impl Command for ChangePassword {}

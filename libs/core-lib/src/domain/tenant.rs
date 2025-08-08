@@ -1,5 +1,6 @@
 use crate::{Command, CoreError, DomainEvent, Event};
 use cqrs_es::Aggregate;
+pub use proto::tenant::tenant_command::TenantCommand;
 use proto::tenant::{CreateTenant, TenantCreated};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,11 +15,6 @@ pub struct Tenant {
 }
 
 // --- Commands ---
-
-#[derive(Debug, Clone)]
-pub enum TenantCommand {
-    Create(CreateTenant),
-}
 
 impl Command for CreateTenant {}
 

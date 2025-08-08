@@ -44,6 +44,17 @@ message RevokeApiKey {
     string key_id = 2; // The ID of the key to revoke
 }
 
+message UserCommand {
+    oneof user_command {
+        RegisterUser register = 1;
+        ChangePassword change_password = 2;
+        GenerateApiKey generate_api_key = 3;
+        LoginUser login = 4;
+        RevokeApiKey revoke_api_key = 5;
+        // Add other commands as needed
+    }
+}
+
 // === Events ===
 
 message UserRegistered {

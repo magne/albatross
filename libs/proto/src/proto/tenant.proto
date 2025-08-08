@@ -10,6 +10,13 @@ message CreateTenant {
     // Add other initial tenant settings if needed
 }
 
+message TenantCommand {
+    oneof tenant_command {
+        CreateTenant create = 1;
+        // Add other commands as needed
+    }
+}
+
 // === Events ===
 
 message TenantCreated {

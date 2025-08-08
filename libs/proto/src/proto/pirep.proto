@@ -17,6 +17,13 @@ message SubmitPIREP {
     string remarks = 9;
 }
 
+message PIREPCommand {
+    oneof pirep_command {
+        SubmitPIREP submit = 1;
+        // Add other commands as needed
+    }
+}
+
 // === Events ===
 
 message PIREPSubmitted {

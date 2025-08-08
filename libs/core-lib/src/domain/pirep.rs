@@ -1,5 +1,6 @@
 use crate::{Command, CoreError, DomainEvent, Event};
 use cqrs_es::Aggregate;
+pub use proto::pirep::pirep_command::PirepCommand;
 use proto::pirep::{PirepSubmitted, SubmitPirep};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,11 +22,6 @@ pub struct Pirep {
 }
 
 // --- Commands ---
-
-#[derive(Debug, Clone)]
-pub enum PirepCommand {
-    Submit(SubmitPirep),
-}
 
 impl Command for SubmitPirep {}
 
