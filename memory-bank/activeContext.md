@@ -1,6 +1,8 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 7 completed. Ready to start Phase 1, Step 8 (Role-Based Authorization).
+* **Current Focus:** Phase 1, Step 7 completed. Ready to start Phase 1, Step 8 (Role-Based Authorization). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized with current progress.
+* **Recent Changes (Internal Cleanup):**
+  * Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings.
 * **Recent Changes (Phase 1, Step 7 Completion):**
   * Implemented API key generation, authentication, and revocation in `api-gateway`.
   * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
@@ -17,9 +19,9 @@
   * Fixed `sqlx` offline query compilation issues.
   * All tests passed successfully.
 * **Next Steps (Phase 1, Step 8 Start):**
-  * Define basic roles (e.g., PlatformAdmin, TenantAdmin, Pilot).
-  * Enhance aggregates (User, Tenant) to store/manage roles.
-  * Update projections and read models to include role information.
+  * Define basic roles (e.g., `PlatformAdmin`, `TenantAdmin`, `Pilot`).
+  * Enhance aggregates (`User`) to store/manage roles.
+  * Update projections and read models (`users` table) to include role information.
   * Implement authorization logic (e.g., middleware or checks within handlers) in `api-gateway` based on roles extracted from authenticated user context (initially from API key, later JWT).
   * Add tests for role-based access control.
 * **Future Steps (Phase 1.5):**
@@ -42,9 +44,11 @@
   * Prioritize Open Source components and minimal vendor lock-in.
   * Aim for good Developer Experience (DX), including debugging support for microservices potentially running outside k3s.
   * Maintain clear separation between application logic and reusable infrastructure definitions.
-  * **Workflow:** Stop after completing each step in the current plan (`doc/plans/phase-1-plan.md`). Update Memory Bank (`activeContext.md`, `progress.md`) after each step completion. Ensure plan formatting uses consistent spacing (like `phase-1-plan.md`).
+  * **Workflow:** Stop after completing each step in the current plan (`doc/plans/phase-1-plan.md`). Update Memory Bank (`activeContext.md`, `progress.md`) after each step completion. Ensure plan formatting uses consistent spacing.
   * Cache invalidation logic in command handlers should run *after* successful event persistence/publishing. Cache errors should be logged but generally not fail the command.
 * **Learnings/Insights:**
+  * Ensure consistency between code data types (e.g., IDs as String vs. Uuid) and database schema (VARCHAR vs. UUID).
+  * Match arms in Rust must return compatible types; use `.map_err` and ensure all arms yield the same `Result` structure or use explicit `Ok(())` where appropriate.
   * Using both `refinery` and `sqlx-cli` provides good balance: runtime migrations with `refinery`, offline query validation with `sqlx-cli`.
   * Type hints (e.g., `::Uuid`) in SQL queries help `sqlx` macro understand types during offline preparation.
   * Migration file naming requirements differ between tools (`V1__` for `refinery`, `01__` for `sqlx-cli`).

@@ -1,84 +1,78 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 7 completed. Ready to start Step 8 (Role-Based Authorization).
+* **Current Status:** Phase 1, Step 7 completed. Ready to start Step 8 (Role-Based Authorization). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized.
 * **Completed Features/Milestones:**
-  * **Phase 1, Step 7:**
-    * Implemented API key generation, authentication (cache-based), and revocation in `api-gateway`.
+  * **Internal Cleanup:** Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings. - **DONE**
+  * **Phase 1, Step 7:** API Key Authentication & Management (Backend - `apps/api-gateway`, `libs/core-lib`) - **DONE**
+    * Implemented API key generation, authentication (cache-based), and revocation.
     * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
-    * Implemented `GenerateApiKeyHandler` (returns plain key once, stores hash in aggregate, populates cache).
-    * Implemented `RevokeApiKeyHandler` (stores event in aggregate, invalidates cache entries).
-    * Implemented `api_key_auth` middleware using direct cache lookup.
-    * Added integration tests (`api_key_routes.rs`) for the full lifecycle.
-    * Refined logging to avoid exposing sensitive key material.
-  * **Phase 1, Step 6:**
-    * Successfully implemented Projection Worker with RabbitMQ Consumer, PostgreSQL writes, and Redis notifications.
-    * Fixed `sqlx` offline query compilation issues.
-    * Verified all tests pass successfully.
-  * **Phase 1, Step 5:**
-    * Implemented real infrastructure adapters (`PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`) in `libs/core-lib`.
-    * Added corresponding dependencies (`sqlx`, `lapin`, `redis-rs`, `testcontainers-rs`, `testcontainers-modules`) to `libs/core-lib`.
-    * Implemented basic integration tests for adapters using `testcontainers-rs`.
-    * Refactored `Repository` trait and `InMemoryEventRepository` to handle raw event data.
-    * Removed flawed default `Aggregate::load_from_data` method.
-    * Verified `libs/core-lib` compiles successfully (with expected warnings).
-  * **Phase 1, Step 4:**
-    * Created `apps/projection-worker` service skeleton and added to workspace.
-    * Defined initial read model schemas (`tenants`, `users`) and migration file.
-    * Embedded migrations in `projection-worker` using `refinery`.
-    * Implemented basic event consumption loop in `projection-worker` using `InMemoryEventBus`.
-    * Implemented placeholder projection handlers (`handle_tenant_created`, `handle_user_registered`).
-    * Verified `apps/projection-worker` compiles successfully (with expected warnings).
-  * **Phase 1, Step 3:**
-    * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler`) in `apps/api-gateway`.
-    * Implemented basic command dispatch logic: DTOs, Axum route handlers (`/api/users`, `/api/tenants`), state injection, error mapping to HTTP responses in `api-gateway`.
-    * Added necessary dependencies and error handling infrastructure to `api-gateway`.
-    * Added `From<AggregateError>` implementations to `CoreError` in `libs/core-lib`.
-    * Verified `apps/api-gateway` compiles successfully (with expected warnings for unused code).
-  * **Phase 1, Steps 1 & 2:**
-    * Defined core ES/CQRS Ports (traits) in `libs/core-lib`.
-    * Implemented in-memory adapters (`InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`) in `libs/core-lib`.
-    * Defined Protobuf messages for `Tenant`, `User`, and `PIREP` commands/events in `libs/proto`.
-    * Implemented initial Aggregate roots (`Tenant`, `User`, `Pirep`) in `libs/core-lib`.
-    * Verified `libs/core-lib` and `libs/proto` compile successfully.
-  * **Phase 0:**
-    * Finalized core technology stack (Axum, React, Vite/SWC, Tailwind v4, Postgres, RabbitMQ, Redis, Protobuf).
-    * Established monorepo structure (`apps/`, `libs/`) with Git, Cargo workspace, PNPM.
-    * Created initial Rust service/library skeletons (`api-gateway`, `core-lib`, `proto`).
-    * Configured basic Protobuf build process (`libs/proto/build.rs`).
-    * Scaffolded frontend project (`apps/web-ui`) using React, Vite, SWC, React Router, Tailwind v4.
-    * Integrated Biome for JS/TS linting/formatting.
-    * Created basic Docker Compose infrastructure definition (`docker-compose.infra.yml`).
-    * Created placeholder for Helm infrastructure definitions (`infra/helm/README.md`).
-    * Set up basic GitHub Actions CI workflow (`.github/workflows/ci.yml`).
-    * Implemented basic frontend asset embedding in `api-gateway` using `rust-embed`.
+    * Implemented `GenerateApiKeyHandler` & `RevokeApiKeyHandler`.
+    * Implemented `api_key_auth` middleware.
+    * Added integration tests (`api_key_routes.rs`).
+    * Refined logging.
+  * **Phase 1, Step 6:** DB Logic in Projections & Notifications (Backend - `apps/projection-worker`) - **DONE**
+    * Set up DB connection pool (`sqlx::PgPool`).
+    * Ran migrations on startup.
+    * Updated projection handlers for DB writes (`sqlx`).
+    * Implemented Redis Pub/Sub notification publishing.
+    * Added `UserApiKey` read model and migration (`02__add_user_api_keys.sql`).
+  * **Phase 1, Step 5:** Real Infrastructure Adapters & Integration Tests (Backend - `libs/core-lib`) - **DONE**
+    * Added dependencies (`sqlx`, `lapin`, `redis-rs`, `testcontainers-rs`).
+    * Implemented `PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`.
+    * Added integration tests using `testcontainers-rs`.
+  * **Phase 1, Step 4:** Projection Worker Skeleton & Migrations (Backend - `apps/projection-worker`) - **DONE**
+    * Created `apps/projection-worker` service.
+    * Defined initial Read Model schemas (`tenants`, `users`) and migration (`01__initial_read_models.sql`).
+    * Embedded migrations (`refinery`).
+    * Implemented basic event consumption loop (in-memory).
+  * **Phase 1, Step 3:** Initial Command Handlers & API Gateway Setup (Backend - `apps/api-gateway`) - **DONE**
+    * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler` - initial version).
+    * Implemented basic command dispatch, Axum routes, state injection, error mapping.
+  * **Phase 1, Step 2:** Initial Domain Model & Protobuf (Backend - `libs/proto`, `libs/core-lib`) - **DONE**
+    * Defined Protobuf messages (`Tenant`, `User`, `PIREP`).
+    * Implemented Aggregate roots (`Tenant`, `User`, `Pirep`).
+  * **Phase 1, Step 1:** Core ES/CQRS Libs & In-Memory Adapters (Backend - `libs/core-lib`) - **DONE**
+    * Defined core Ports (Traits).
+    * Implemented `InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`.
+    * Added dependencies, organized modules.
+  * **Phase 0:** Project Setup, Scaffolding, Initial Config - **DONE**
+    * Finalized core tech stack.
+    * Established monorepo structure.
+    * Created initial service/library skeletons.
+    * Configured Protobuf build process.
+    * Scaffolded frontend project.
+    * Integrated Biome.
+    * Created basic Docker Compose infra definition.
+    * Created placeholder Helm definitions.
+    * Set up basic GitHub Actions CI.
+    * Implemented basic frontend asset embedding.
 
 * **Work In Progress:** None. Ready for Phase 1, Step 8.
 
-* **Upcoming Work (Phase 1, Step 8):**
-  * Define basic roles (e.g., PlatformAdmin, TenantAdmin, Pilot).
-  * Enhance aggregates (User, Tenant) to store/manage roles.
-  * Update projections and read models to include role information.
-  * Implement authorization logic (e.g., middleware or checks within handlers) in `api-gateway` based on roles extracted from authenticated user context (initially from API key, later JWT).
-  * Add tests for role-based access control.
-  * (Subsequent Steps): Containerization, infrastructure setup, testing.
+* **Upcoming Work (Phase 1, Step 8):** Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`, `apps/projection-worker`) - **NEXT**
+  * Define `Role` enum (`PlatformAdmin`, `TenantAdmin`, `Pilot`).
+  * Enhance `User` aggregate (state, events, commands) to manage roles.
+  * Update Protobuf definitions (`Role` enum, commands, events, `AuthenticatedUser`).
+  * Update `projection-worker`: Add migration (`03__add_user_roles.sql`) for `roles JSONB` column in `users` table; update projection handlers.
+  * Ensure `AuthenticatedUser` in cache includes roles.
+  * Implement authorization logic (Axum middleware `RequireRoleLayer` and/or handler checks).
+  * Apply authorization to API routes.
+  * Add unit and integration tests.
+  * (Subsequent Steps): API Query Endpoints, WebSockets, Frontend UI, PIREP Flow, Admin Setup, Docker Deployment, Testing, Docs.
 
 * **Known Issues/Bugs:** None specific yet.
   * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. `LoginUser` command/handler flow needs implementation/refinement.
 
-* **Decision Log:** (Summary of key decisions from initial planning & recent updates)
-  * Project Name: Albatross (Finalized for now).
-  * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
-  * Backend Stack: Rust / Axum framework, PostgreSQL, RabbitMQ, Redis.
-  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4, Headless UI. (Vue & Svelte to be implemented in Phase 1.5 for comparison).
-  * Infrastructure Stack ("Scenario B"): PostgreSQL (Events/Reads), RabbitMQ (Event Bus), Redis (Cache/PubSub).
+* **Decision Log:** (Summary - See `activeContext.md` for more detail)
+  * Project Name: Albatross.
+  * Architecture: ES/CQRS, Hexagonal, Microservices (planned), Multi-tenant.
+  * Backend Stack: Rust/Axum, PostgreSQL, RabbitMQ, Redis.
+  * Frontend Stack: React/Vite/SWC, Tailwind CSS v4, Headless UI.
+  * Infrastructure Stack: PostgreSQL, RabbitMQ, Redis.
   * Repo Structure: Monorepo (Cargo Workspace, PNPM).
-  * Serialization: Protobuf (using `prost`, stored as binary `bytea`).
-  * Deployment: Support 3 models (Single Executable uses In-Memory Adapters/SQLite, Docker Compose uses real infra, K8s uses real infra). Phase 1 includes basic Docker Compose support.
-  * Licensing: Dual AGPLv3+Commercial or BSL model preferred over standard OSI licenses due to commercial restrictions requirement.
-  * Infrastructure Management: Separate reusable definitions (Docker Compose files, Helm Charts) from application code.
+  * Serialization: Protobuf (`prost`, binary `bytea`).
+  * Deployment: 3 models (Single Executable, Docker Compose, K8s).
+  * Licensing: Dual AGPLv3+Commercial or BSL preferred.
   * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
-  * Initial Setup: Platform Admin created on first run with logged one-time password.
-  * UI Components: Headless UI chosen for React.
-  * Real-time: WebSockets included in Phase 1 MVP.
-  * Migrations: `refinery` crate chosen, but using `sqlx-cli` for offline query preparation.
-  * API Key Auth: Cache-based lookup using plain text key. Revocation invalidates cache.
+  * Migrations: `refinery` + `sqlx-cli`.
+  * API Key Auth: Cache-based lookup.
