@@ -5,7 +5,7 @@ import './index.css'
 
 const root = document.getElementById('root')
 
-// biome-ignore lint/style/noNonNullAssertion: <explanation>
+// biome-ignore lint/style/noNonNullAssertion: We know there is a root element.
 createRoot(root!).render(
   <StrictMode>
     <App />
