@@ -67,50 +67,66 @@ This plan outlines the steps for implementing the Minimum Viable Product (MVP) f
     * Added integration tests (`api_key_routes.rs`).
     * Refined logging.
 
-8. **Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`, `apps/projection-worker`) - NEXT**
-    * Define roles and enhance aggregates to manage them.
-    * Update projections, read models, and cache to include role information.
-    * Implement authorization logic (e.g., middleware) in `api-gateway`.
-    * Add tests for role-based access control.
+8. **Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`, `apps/projection-worker`) - DONE**
+    * Added `application/authz.rs` with `AuthRole`, `Requirement`, `authorize()`, `parse_role()`.
+    * Enforced PlatformAdmin-only tenant creation and RBAC constraints in user registration and API key endpoints.
+    * Implemented bootstrap registration path (first PlatformAdmin w/out auth).
+    * Added self/tenant admin or platform admin logic for API key lifecycle.
+    * Middleware enriches legacy cache entries (adds role) via dynamic event replay.
+    * User aggregate invariants: PlatformAdmin must have no tenant; others must have tenant.
+    * Read model already contains `role` field (no new migration).
+    * Pending: negative RBAC integration tests (forbidden scenarios), unit tests for `authorize()`.
 
-9. **Implement API Query Endpoints & Caching (Backend - `apps/api-gateway`)** *(Was Step 7)*
-    * Develop API query endpoints (`GET /api/tenants`, `GET /api/users`).
-    * Implement query handlers/logic to read directly from read models using `sqlx::PgPool`.
-    * Implement caching for query endpoints using the `RedisCache` adapter.
+9. **Implement API Query Endpoints & Caching (Backend - `apps/api-gateway`) - IN PROGRESS**
+    * Provide `GET /api/tenants` and `GET /api/users` endpoints.
+    * RBAC-scoped results.
+    * Redis cache-aside for result sets with short TTL.
+    * Add missing RBAC negative tests (from Step 8).
+    * Prepare for WebSocket invalidation (Step 10).
 
-10. **Implement WebSocket Logic (Backend - `apps/api-gateway`)** *(Was Step 8)*
+10. **Implement WebSocket Logic (Backend - `apps/api-gateway`)**
     * Configure Axum WebSocket endpoint (`/api/ws`).
     * Implement connection handling, authentication, and subscription logic using the `RedisEventBus` subscriber functionality.
     * Forward messages from Redis Pub/Sub to connected WebSocket clients.
 
-11. **Implement Initial Frontend UI & Real-time Updates (Frontend - `apps/web-ui`)** *(Was Step 9)*
+11. **Implement Initial Frontend UI & Real-time Updates (Frontend - `apps/web-ui`)**
     * Integrate Headless UI with Tailwind CSS v4.
     * Build React components for MVP features (Login, API Key, Change Pwd, Tenant Create/List, User Reg/List).
     * Implement WebSocket client logic (`react-use-websocket`) to connect and handle real-time updates.
     * Connect components to REST backend endpoints.
 
-12. **Basic PIREP Flow (Backend & Frontend)** *(Was Step 10)*
+12. **Basic PIREP Flow (Backend & Frontend)**
     * Implement `SubmitPIREP` command handler in `api-gateway`.
     * Implement `PIREPSubmitted` projection handler in `projection-worker` (including DB update & Redis notification).
     * Develop PIREP REST API endpoints (`POST/GET /api/pireps`) in `api-gateway`.
     * Create PIREP UI form/view in `web-ui` with real-time updates.
 
-13. **Initial Platform Admin Setup (Backend - `apps/api-gateway`)** *(Was Step 11)*
+13. **Initial Platform Admin Setup (Backend - `apps/api-gateway`)**
     * Implement startup logic to create initial `PlatformAdmin` user if none exists, logging one-time password.
 
-14. **Docker Deployment Setup** *(Was Step 12)*
+14. **Docker Deployment Setup**
     * Create `Dockerfile` for `apps/api-gateway`.
     * Create `Dockerfile` for `apps/projection-worker`.
     * Create `docker-compose.application.yml` (or similar) to define services for `api-gateway` and `projection-worker`, linking them to the infrastructure services defined in `docker-compose.infra.yml`.
     * Ensure application can be launched using `docker compose -f docker-compose.infra.yml -f docker-compose.application.yml up`.
 
-15. **Testing & Refinement** *(Was Step 13)*
+15. **Testing & Refinement**
     * Write/update unit tests (using In-Memory adapters).
     * Write/update integration tests (using `testcontainers-rs` adapters).
     * Write/update E2E tests (Playwright) for core UI flows.
     * Refine implementation based on tests.
 
-16. **Documentation** *(Was Step 14)*
+16. **Documentation**
     * Update this plan file (`doc/plans/phase-1-plan.md`).
     * Continuously update Memory Bank files (`activeContext.md`, `progress.md`, `systemPatterns.md`).
     * Add necessary code comments and documentation.
+
+**Cross-Cutting Improvements / Technical Debt Identified (Rolling List):**
+* Replace placeholder password hashing in registration with Argon2 (consistency with API key hashing).
+* Extract shared aggregate replay helper (reduce duplication in handlers & middleware).
+* Centralize TTL constants for cache usage (auth vs queries).
+* Add negative RBAC integration tests & unit tests for `authorize()`.
+* Introduce unified HTTP error mapping helper.
+* Add structured tracing spans for new query endpoints.
+* Consider early pagination abstraction for queries (limit enforcement).
+* Prepare cache invalidation hook for Step 10 (WebSocket notifications).
