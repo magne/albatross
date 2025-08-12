@@ -3,6 +3,7 @@ use core_lib::CoreError;
 // Declare sub-modules within the application layer
 pub mod commands;
 pub mod middleware; // Added
+pub mod authz; // RBAC helpers
 // pub mod queries; // Add later
 
 // Define a top-level error type for the application layer

@@ -15,7 +15,7 @@ use core_lib::{
     // Import specific adapters if needed for AppState construction in tests,
     // but prefer keeping concrete types out of lib.rs if possible.
 };
-use http::{HeaderValue, StatusCode, Uri, header};
+use http::{HeaderMap, HeaderValue, StatusCode, Uri, header};
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -31,8 +31,12 @@ use application::{
         revoke_api_key::RevokeApiKeyHandler,
     },
     middleware::{AuthenticatedUser, api_key_auth},
+    authz::{authorize, parse_role, Requirement},
 };
-use proto::user::RevokeApiKey;
+use cqrs_es::Aggregate;
+use prost::Message;
+use core_lib::domain::user::{User, UserEvent};
+use proto::user::{ApiKeyGenerated, PasswordChanged, UserLoggedIn, UserRegistered, ApiKeyRevoked, RevokeApiKey};
 
 // --- Public Structs ---
 
@@ -74,21 +78,28 @@ pub fn create_app(app_state: AppState) -> Router {
     // Make pub
     let api_routes = Router::new()
         .route("/users", post(handle_register_user_request)) // Assumes handler is pub or in scope
-        .route("/tenants", post(handle_create_tenant_request)) // Assumes handler is pub or in scope
+        .route(
+            "/tenants",
+            post(handle_create_tenant_request)
+                .route_layer(middleware::from_fn_with_state(
+                    app_state.clone(),
+                    api_key_auth,
+                )),
+        ) // Protected: PlatformAdmin only
         .route(
             "/users/{user_id}/apikeys",            // Use {} syntax for path parameters
-            post(handle_generate_api_key_request), // Make handler pub
+            post(handle_generate_api_key_request),
         )
         .route(
             "/users/{user_id}/apikeys/{key_id}", // Use {} syntax for path parameters
-            delete(handle_revoke_api_key_request), // Make handler pub
+            delete(handle_revoke_api_key_request)
+                .route_layer(middleware::from_fn_with_state(app_state.clone(), api_key_auth)),
         )
         .route(
             "/protected",
             get(protected_route).route_layer(middleware::from_fn_with_state(
-                // Make handler pub
                 app_state.clone(),
-                api_key_auth, // Assumes middleware is pub or in scope
+                api_key_auth,
             )),
         );
 
@@ -137,9 +148,78 @@ async fn serve_embedded_file(path: &str) -> Response {
 pub async fn handle_generate_api_key_request(
     // Make pub
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     Path(user_id): Path<String>,
     Json(payload): Json<GenerateApiKeyRequest>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    // Resolve target user aggregate and tenant
+    let stored_events = app_state.user_repo.load(&user_id).await.map_err(map_core_error)?;
+    let mut target = User::default();
+    for stored_event in stored_events {
+        match stored_event.event_type.as_str() {
+            "UserRegistered" => {
+                if let Ok(e) = UserRegistered::decode(stored_event.payload.as_slice()) {
+                    target.apply(UserEvent::Registered(e))
+                }
+            }
+            "PasswordChanged" => {
+                if let Ok(e) = PasswordChanged::decode(stored_event.payload.as_slice()) {
+                    target.apply(UserEvent::PasswordChanged(e))
+                }
+            }
+            "ApiKeyGenerated" => {
+                if let Ok(e) = ApiKeyGenerated::decode(stored_event.payload.as_slice()) {
+                    target.apply(UserEvent::ApiKeyGenerated(e))
+                }
+            }
+            "UserLoggedIn" => {
+                if let Ok(e) = UserLoggedIn::decode(stored_event.payload.as_slice()) {
+                    target.apply(UserEvent::LoggedIn(e))
+                }
+            }
+            "ApiKeyRevoked" => {
+                if let Ok(e) = ApiKeyRevoked::decode(stored_event.payload.as_slice()) {
+                    target.apply(UserEvent::ApiKeyRevoked(e))
+                }
+            }
+            _ => {}
+        }
+    }
+    let target_tenant_id = target.tenant_id().cloned();
+
+    // Attempt to derive context from Authorization header (optional)
+    let auth_header = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|h| h.to_str().ok());
+
+    let ctx_opt: Option<AuthenticatedUser> = match auth_header {
+        Some(h) if h.starts_with("Bearer ") => {
+            let token = h.trim_start_matches("Bearer ").trim();
+            match app_state.cache.get(token).await {
+                Ok(Some(bytes)) => serde_json::from_slice::<AuthenticatedUser>(&bytes).ok(),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+
+    if let Some(ctx) = ctx_opt {
+        let role = parse_role(&ctx.role).ok_or(StatusCode::FORBIDDEN)?;
+        authorize(
+            &ctx.user_id,
+            &ctx.tenant_id,
+            role,
+            Requirement::SelfOrTenantAdmin {
+                target_user_id: user_id.clone(),
+                target_tenant_id: target_tenant_id.clone(),
+            },
+        )?;
+    } else {
+        // Bootstrap: allow unauthenticated creation only if user has no existing keys
+        if target.api_key_count() > 0 {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    }
     let handler = GenerateApiKeyHandler::new(
         app_state.user_repo.clone(),
         app_state.event_bus.clone(),
@@ -162,8 +242,58 @@ pub async fn handle_generate_api_key_request(
 pub async fn handle_revoke_api_key_request(
     // Make pub
     State(app_state): State<AppState>,
+    Extension(ctx): Extension<AuthenticatedUser>,
     Path((user_id, key_id)): Path<(String, String)>,
 ) -> Result<StatusCode, StatusCode> {
+    // Resolve target tenant (self uses ctx; other loads from aggregate)
+    let target_tenant_id = if user_id != ctx.user_id {
+        let stored_events = app_state.user_repo.load(&user_id).await.map_err(map_core_error)?;
+        let mut target = User::default();
+        for stored_event in stored_events {
+            match stored_event.event_type.as_str() {
+                "UserRegistered" => {
+                    if let Ok(e) = UserRegistered::decode(stored_event.payload.as_slice()) {
+                        target.apply(UserEvent::Registered(e))
+                    }
+                }
+                "PasswordChanged" => {
+                    if let Ok(e) = PasswordChanged::decode(stored_event.payload.as_slice()) {
+                        target.apply(UserEvent::PasswordChanged(e))
+                    }
+                }
+                "ApiKeyGenerated" => {
+                    if let Ok(e) = ApiKeyGenerated::decode(stored_event.payload.as_slice()) {
+                        target.apply(UserEvent::ApiKeyGenerated(e))
+                    }
+                }
+                "UserLoggedIn" => {
+                    if let Ok(e) = UserLoggedIn::decode(stored_event.payload.as_slice()) {
+                        target.apply(UserEvent::LoggedIn(e))
+                    }
+                }
+                "ApiKeyRevoked" => {
+                    if let Ok(e) = ApiKeyRevoked::decode(stored_event.payload.as_slice()) {
+                        target.apply(UserEvent::ApiKeyRevoked(e))
+                    }
+                }
+                _ => {}
+            }
+        }
+        target.tenant_id().cloned()
+    } else {
+        ctx.tenant_id.clone()
+    };
+
+    let role = parse_role(&ctx.role).ok_or(StatusCode::FORBIDDEN).map_err(|_| StatusCode::FORBIDDEN)?;
+    authorize(
+        &ctx.user_id,
+        &ctx.tenant_id,
+        role,
+        Requirement::SelfOrTenantAdmin {
+            target_user_id: user_id.clone(),
+            target_tenant_id,
+        },
+    ).map_err(|_| StatusCode::FORBIDDEN)?;
     let handler = RevokeApiKeyHandler::new(
         app_state.user_repo.clone(),
         app_state.event_bus.clone(),

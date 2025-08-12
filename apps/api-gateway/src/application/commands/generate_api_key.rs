@@ -196,10 +196,17 @@ impl GenerateApiKeyHandler {
         }
 
         // 7. Store AuthenticatedUser in cache, keyed by the PLAIN TEXT key
+        let role_str = match user.role() {
+            proto::user::Role::PlatformAdmin => "PlatformAdmin",
+            proto::user::Role::TenantAdmin => "TenantAdmin",
+            proto::user::Role::Pilot => "Pilot",
+            _ => "Unspecified",
+        }.to_string();
+
         let authenticated_user = AuthenticatedUser {
             user_id: input.user_id.clone(),
             tenant_id: user.tenant_id().cloned(), // Get tenant_id from loaded user aggregate state
-                                                  // key_id: key_id.clone(), // Also store key_id for potential revocation checks later
+            role: role_str,
         };
         let cache_key = plain_key.clone(); // Use the PLAIN TEXT key as the cache key
         let cache_value = serde_json::to_vec(&authenticated_user).map_err(|e| {

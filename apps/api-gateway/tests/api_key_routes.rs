@@ -81,9 +81,13 @@ async fn test_generate_and_revoke_api_key() {
     let key_id = generated_key_data.key_id;
     let _api_key = generated_key_data.api_key; // Store if needed for auth test later
 
-    // 3. Revoke the generated API key
+    // 3. Revoke the generated API key (authorized)
     let revoke_response = server
         .delete(&format!("/api/users/{}/apikeys/{}", user_id, key_id))
+        .add_header(
+            http::HeaderName::from_static("authorization"),
+            http::HeaderValue::from_str(&format!("Bearer {}", _api_key)).unwrap(),
+        )
         .await;
 
     assert_eq!(revoke_response.status_code(), StatusCode::NO_CONTENT);
@@ -91,9 +95,13 @@ async fn test_generate_and_revoke_api_key() {
     // 4. (Optional) Try to revoke again - should likely return 404 or maybe still 204/error depending on impl
     let revoke_again_response = server
         .delete(&format!("/api/users/{}/apikeys/{}", user_id, key_id))
+        .add_header(
+            http::HeaderName::from_static("authorization"),
+            http::HeaderValue::from_str(&format!("Bearer {}", _api_key)).unwrap(),
+        )
         .await;
     // Asserting 404 as the key is likely gone from the aggregate state after revoke event
-    assert_eq!(revoke_again_response.status_code(), StatusCode::NOT_FOUND);
+    assert_eq!(revoke_again_response.status_code(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -155,6 +163,10 @@ async fn test_api_key_authentication() {
     // 5. Revoke the key
     let revoke_response = server
         .delete(&format!("/api/users/{}/apikeys/{}", user_id, key_id))
+        .add_header(
+            HeaderName::from_static("authorization"),
+            HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap(),
+        )
         .await;
     assert_eq!(revoke_response.status_code(), StatusCode::NO_CONTENT);
 

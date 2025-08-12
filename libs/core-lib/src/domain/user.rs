@@ -182,6 +182,15 @@ impl User {
     pub fn tenant_id(&self) -> Option<&String> {
         self.tenant_id.as_ref()
     }
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    pub fn role(&self) -> Role {
+        self.role
+    }
+    pub fn api_key_count(&self) -> usize {
+        self.api_keys.len()
+    }
 
     // --- Command Handlers ---
 

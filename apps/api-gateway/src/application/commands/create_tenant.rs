@@ -1,5 +1,7 @@
 use crate::AppState;
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use crate::application::middleware::AuthenticatedUser;
+use crate::application::authz::{parse_role, AuthRole};
+use axum::{Json, extract::{State, Extension}, http::StatusCode, response::IntoResponse};
 use core_lib::{
     CommandHandler, CoreError, EventPublisher, Repository,
     domain::tenant::{Tenant, TenantCommand, TenantError, TenantEvent},
@@ -95,8 +97,17 @@ pub struct CreateTenantDto {
 
 pub async fn handle_create_tenant_request(
     State(state): State<AppState>,        // Extract AppState
+    Extension(ctx): Extension<AuthenticatedUser>, // Authenticated user context
     Json(payload): Json<CreateTenantDto>, // Extract JSON payload
 ) -> impl IntoResponse {
+    // RBAC: Only PlatformAdmin may create tenants
+    let role = match parse_role(&ctx.role) {
+        Some(r) => r,
+        None => return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "invalid role"}))).into_response()
+    };
+    if role != AuthRole::PlatformAdmin {
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "forbidden"}))).into_response();
+    }
     // 1. Generate Tenant ID
     let tenant_id = Uuid::new_v4().to_string();
 

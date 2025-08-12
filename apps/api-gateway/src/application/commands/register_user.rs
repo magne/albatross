@@ -1,12 +1,14 @@
 use crate::AppState;
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum::{Json, extract::State, http::{StatusCode, HeaderMap, header}, response::IntoResponse};
 use core_lib::{
     CommandHandler, CoreError, EventPublisher, Repository,
     domain::user::{User, UserCommand, UserError, UserEvent},
 };
 use cqrs_es::{Aggregate, DomainEvent};
 use prost::Message;
-use proto::user::RegisterUser;
+use proto::user::{RegisterUser, Role as ProtoRole};
+use crate::application::authz::{parse_role, AuthRole};
+use crate::application::middleware::AuthenticatedUser;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -108,8 +110,82 @@ pub struct RegisterUserDto {
 // --- Axum Route Handler ---
 pub async fn handle_register_user_request(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<RegisterUserDto>,
 ) -> impl IntoResponse {
+    // Optional contextual auth: derive AuthenticatedUser from Authorization header (if present)
+    let auth_header = headers.get(header::AUTHORIZATION).and_then(|h| h.to_str().ok());
+    let ctx_opt: Option<AuthenticatedUser> = match auth_header {
+        Some(h) if h.starts_with("Bearer ") => {
+            let token = h.trim_start_matches("Bearer ").trim();
+            match state.cache.get(token).await {
+                Ok(Some(bytes)) => serde_json::from_slice::<AuthenticatedUser>(&bytes).ok(),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+
+    // RBAC:
+    // 1. If no context -> allow ONLY bootstrap PlatformAdmin creation:
+    //    - initial_role == PlatformAdmin
+    //    - tenant_id is None
+    // 2. If context exists:
+    //    - PlatformAdmin may register any role (PlatformAdmin must have no tenant_id in payload)
+    //    - TenantAdmin may register NON-Platform roles only within its own tenant (payload.tenant_id == ctx.tenant_id, cannot create PlatformAdmin)
+    //    - Pilot cannot register anyone (forbidden)
+    let requested_role = payload.initial_role;
+    let is_platform_admin_role = requested_role == ProtoRole::PlatformAdmin as i32;
+    let mut forbidden = false;
+
+    if let Some(ctx) = &ctx_opt {
+        // Authorized path
+        let role = match parse_role(&ctx.role) {
+            Some(r) => r,
+            None => return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "invalid role"}))).into_response(),
+        };
+
+        match role {
+            AuthRole::PlatformAdmin => {
+                // PlatformAdmin constraints:
+                // If creating another PlatformAdmin, tenant_id must be None
+                if is_platform_admin_role && payload.tenant_id.is_some() {
+                    return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "PlatformAdmin cannot have tenant_id"}))).into_response();
+                }
+                // If creating non-Platform role, tenant_id must be Some
+                if !is_platform_admin_role && payload.tenant_id.is_none() {
+                    return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "tenant_id required for non-PlatformAdmin role"}))).into_response();
+                }
+            }
+            AuthRole::TenantAdmin => {
+                // TenantAdmin cannot create PlatformAdmin
+                if is_platform_admin_role {
+                    forbidden = true;
+                } else {
+                    // Must supply tenant_id matching its own
+                    if let Some(tid) = &payload.tenant_id {
+                        if Some(tid) != ctx.tenant_id.as_ref() {
+                            forbidden = true;
+                        }
+                    } else {
+                        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "tenant_id required"}))).into_response();
+                    }
+                }
+            }
+            AuthRole::Pilot => {
+                forbidden = true;
+            }
+        }
+
+        if forbidden {
+            return (StatusCode::FORBIDDEN, Json(serde_json::json!({"error": "forbidden"}))).into_response();
+        }
+    } else {
+        // Bootstrap path
+        if !(is_platform_admin_role && payload.tenant_id.is_none()) {
+            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "authentication required"}))).into_response();
+        }
+    }
     let user_id = Uuid::new_v4().to_string();
     let password_hash = format!("hashed_{}", payload.password_plaintext); // Replace with actual hashing
 

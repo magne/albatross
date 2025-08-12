@@ -1,6 +1,6 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 7 completed. Ready to start Phase 1, Step 8 (Role-Based Authorization). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized with current progress.
+* **Current Focus:** Phase 1, Step 8 (Role-Based Authorization) implementation completed (core RBAC enforcement in place). Preparing to begin Phase 1, Step 9 (Query Endpoints & Caching). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized; step-specific detailed plan in `doc/plans/phase-1-step-8-plan.md` executed (tests for negative RBAC paths still to be added).
 * **Recent Changes (Internal Cleanup):**
   * Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings.
 * **Recent Changes (Phase 1, Step 7 Completion):**
@@ -18,12 +18,23 @@
   * Successfully implemented Projection Worker with RabbitMQ Consumer, PostgreSQL writes, and Redis notifications.
   * Fixed `sqlx` offline query compilation issues.
   * All tests passed successfully.
-* **Next Steps (Phase 1, Step 8 Start):**
-  * Define basic roles (e.g., `PlatformAdmin`, `TenantAdmin`, `Pilot`).
-  * Enhance aggregates (`User`) to store/manage roles.
-  * Update projections and read models (`users` table) to include role information.
-  * Implement authorization logic (e.g., middleware or checks within handlers) in `api-gateway` based on roles extracted from authenticated user context (initially from API key, later JWT).
-  * Add tests for role-based access control.
+* **Recent Changes (Phase 1, Step 8 Completion):**
+  * Added RBAC policy module (`application/authz.rs`) with `AuthRole`, `Requirement`, `authorize()`, `parse_role()`.
+  * Protected `POST /api/tenants` route with API key auth middleware and PlatformAdmin-only check.
+  * Implemented RBAC logic in `handle_register_user_request`:
+    * Bootstrap path: unauthenticated creation allowed only for initial PlatformAdmin (no tenant).
+    * Authenticated path: PlatformAdmin can create any user (rules on tenant_id presence); TenantAdmin restricted to own tenant and non-Platform roles; Pilot forbidden.
+  * Implemented RBAC in API key generation & revocation handlers using `Requirement::SelfOrTenantAdmin` plus bootstrap allowance for first key.
+  * Wrapped revoke and tenant routes in middleware layers; maintained legacy cache enrichment (adds role if absent).
+  * Verified `users` read model already stores `role` (string) — no migration required; initial migration `01__initial_read_models.sql` sufficient.
+  * All existing integration tests pass (added logic without breaking Step 7 tests). Negative/forbidden scenario tests still pending.
+  * Confirmed user aggregate exposes `role()`, `tenant_id()`, `api_key_count()`.
+* **Next Steps (Phase 1, Step 9 Start):**
+  * Implement query endpoints: `GET /api/tenants`, `GET /api/users` (role-scoped: PlatformAdmin = all, TenantAdmin = own tenant, Pilot = perhaps limited/self).
+  * Add integration tests for RBAC forbidden cases (TenantAdmin cross-tenant user creation, Pilot attempting privileged actions, non-bootstrap unauthorized registration, second unauthenticated API key attempt).
+  * Add Redis-backed caching for query endpoints (key design: namespace + role/tenant scope hash).
+  * Prepare message schema alignment for upcoming WebSocket broadcasting (Step 10).
+  * Update documentation & memory after Step 9 completion.
 * **Future Steps (Phase 1.5):**
   * A plan for Phase 1.5 (MVP Refinement & Foundation Hardening) has been created at `doc/plans/phase-1.5-plan.md`. This phase includes robust Auth/Authz, SQLite support, Docker/Helm setup, basic Observability, and Vue/Svelte MVP implementations.
 * **Active Decisions:**

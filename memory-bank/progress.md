@@ -1,8 +1,16 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 7 completed. Ready to start Step 8 (Role-Based Authorization). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized.
+* **Current Status:** Phase 1, Step 8 completed (core RBAC implemented). Ready to start Step 9 (Query Endpoints & Caching). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized; detailed RBAC plan executed.
 * **Completed Features/Milestones:**
   * **Internal Cleanup:** Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings. - **DONE**
+  * **Phase 1, Step 8:** Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`) - **DONE**
+    * Added `application/authz.rs` with `AuthRole`, `Requirement`, `authorize()`, `parse_role()`.
+    * Enforced PlatformAdmin-only tenant creation (`POST /api/tenants`) behind API key auth middleware.
+    * Implemented bootstrap registration rule (first PlatformAdmin without auth; all others require auth).
+    * Added RBAC checks to user registration, API key generation (self or tenant admin or bootstrap), and revocation (self or tenant admin).
+    * Added middleware protection to revoke and tenant routes; ensured legacy cache enrichment path preserves behavior and adds role if missing.
+    * Confirmed read model already stores role (no migration required).
+    * All existing integration tests pass; negative RBAC tests pending (forbidden scenarios to be added in Step 9 or dedicated hardening pass).
   * **Phase 1, Step 7:** API Key Authentication & Management (Backend - `apps/api-gateway`, `libs/core-lib`) - **DONE**
     * Implemented API key generation, authentication (cache-based), and revocation.
     * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
@@ -49,16 +57,16 @@
 
 * **Work In Progress:** None. Ready for Phase 1, Step 8.
 
-* **Upcoming Work (Phase 1, Step 8):** Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`, `apps/projection-worker`) - **NEXT**
-  * Define `Role` enum (`PlatformAdmin`, `TenantAdmin`, `Pilot`).
-  * Enhance `User` aggregate (state, events, commands) to manage roles.
-  * Update Protobuf definitions (`Role` enum, commands, events, `AuthenticatedUser`).
-  * Update `projection-worker`: Add migration (`03__add_user_roles.sql`) for `roles JSONB` column in `users` table; update projection handlers.
-  * Ensure `AuthenticatedUser` in cache includes roles.
-  * Implement authorization logic (Axum middleware `RequireRoleLayer` and/or handler checks).
-  * Apply authorization to API routes.
-  * Add unit and integration tests.
-  * (Subsequent Steps): API Query Endpoints, WebSockets, Frontend UI, PIREP Flow, Admin Setup, Docker Deployment, Testing, Docs.
+* **Upcoming Work (Phase 1, Step 9):** API Query Endpoints & Caching (Backend - `apps/api-gateway`)
+  * Implement `GET /api/tenants` and `GET /api/users` with role-scoped filtering:
+    * PlatformAdmin => all tenants/users
+    * TenantAdmin => users within own tenant (and own tenant record)
+    * Pilot => possibly self (and maybe tenant summary) — decide minimal scope
+  * Add Redis caching layer (key pattern: `q:{resource}:{scope_hash}` with TTL).
+  * Add negative RBAC integration tests (forbidden cross-tenant user creation, Pilot privilege elevation attempts, second unauthenticated registration attempt, unauthorized key generation after bootstrap).
+  * Introduce query abstraction (lightweight service or repository facade) reading projection DB (future: `sqlx::PgPool` injection).
+  * Prepare consistent response DTOs for upcoming WebSocket usage (Step 10).
+  * Update memory bank after completion.
 
 * **Known Issues/Bugs:** None specific yet.
   * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. `LoginUser` command/handler flow needs implementation/refinement.

@@ -1,305 +1,250 @@
-# Phase 1 — Step 8 Plan: Role-Based Authorization (AuthZ) (v1)
+# Phase 1 — Step 8 Plan: Role-Based Authorization (RBAC)
+
+Status: Planned  
+Owners: Backend (api-gateway, core-lib, projection-worker)  
+Version: v1
+
+## Objectives
+
+- Enforce least-privilege access for all backend routes.
+- Encode role and tenant scoping into a single, reusable authorization policy.
+- Ensure auth works for both:
+  - Bootstrap flows (first API key for a user without prior keys).
+  - Normal flows (authenticated requests with cached user context).
+- Keep tests green and add new coverage for RBAC.
+
+## Scope
+
+In-scope:
+
+- Role model and invariants in `core-lib`.
+- Authorization policies and guards in `apps/api-gateway`.
+- Read model and cache updates to include `role`.
+- Tests (unit + integration) for allowed/denied matrices.
+
+Out of scope (later steps):
+
+- UI enforcement (frontend).
+- Fine-grained, attribute-based access; stick to role + tenant for now.
+
+## Assumptions and Uncertainties
+
+Assumptions:
+
+- Protobuf `Role` enum already includes `PlatformAdmin`, `TenantAdmin`, `Pilot`.
+- `User` aggregate stores `role` and `tenant_id` and is reconstructible from events.
+- API key cache entries can store serialized `AuthenticatedUser` values.
+
+Uncertainties:
+
+- Whether we require an explicit domain command to change roles in Phase 1 (likely no — initial roles set at registration is sufficient).
+- Whether read models already persist user roles; plan for a migration if not.
+
+## Architecture & Design
+
+- Centralize authorization decisions in a small policy module:
+  - `Requirement` enum (e.g., `PlatformAdminOnly`, `SelfOrTenantAdmin { target_user_id, target_tenant_id }`).
+  - `authorize(ctx_user_id, ctx_tenant_id, ctx_role, req) -> Result<(), StatusCode>`.
+- Authn (API key) remains cache-based:
+  - Cache value: `{ user_id, tenant_id, role }`.
+  - Backward compatibility: if legacy cache entry lacks `role`, rebuild `User` from events and rehydrate cache with role (with TTL).
+- Enforcement strategy:
+  - Apply middleware for general protection (e.g., `/api/protected`).
+  - For routes with path parameters (user/tenant), apply guard in-handler where we have target IDs.
+- Bootstrap exception:
+  - Allow generating the very first API key for a user without auth only if that user has `api_key_count() == 0`.
+
+## Role Model & Invariants (core-lib)
+
+- `User.role: Role` (Proto-backed enum).
+- Invariants:
+  - `PlatformAdmin` must not have a `tenant_id`.
+  - Non-`PlatformAdmin` must have a `tenant_id`.
+- Public getters required:
+  - `id() -> &str`, `role() -> Role`, `tenant_id() -> Option<&String>`, `api_key_count() -> usize`.
+- No new domain commands for role changes in Phase 1; role is set at registration.
+
+## Read Models & Projections (projection-worker)
+
+- Ensure user read model includes `role` and `tenant_id`.
+- Migration if needed:
+  - `03__users_add_role_column.sql`:
+    - `ALTER TABLE users ADD COLUMN IF NOT EXISTS role INT NOT NULL DEFAULT 0;`
+    - Backfill can be omitted for MVP if reads don’t depend on it; gateway can still derive role from events for legacy cache entries.
+- Update projection handlers to set `role` on `UserRegistered` and maintain tenant integrity.
+
+## Authorization Policy (api-gateway)
+
+- Introduce `application::authz` module:
+  - `AuthRole` (mapped from string or proto): `PlatformAdmin`, `TenantAdmin`, `Pilot`.
+  - `parse_role(&str) -> Option<AuthRole>`.
+  - `Requirement` enum:
+    - `PlatformAdminOnly`
+    - `SelfOrTenantAdmin { target_user_id, target_tenant_id: Option<String> }`
+  - `authorize(...) -> Result<(), StatusCode>`.
+- Policy rules:
+  - `PlatformAdminOnly`: only platform admins allowed.
+  - `SelfOrTenantAdmin`:
+    - Allow if `ctx.user_id == target_user_id`.
+    - Or allow if `ctx.role == TenantAdmin` and `ctx.tenant_id == target_tenant_id`.
+    - Or allow if `ctx.role == PlatformAdmin`.
+
+## Enforcement Matrix (initial endpoints)
+
+- `POST /api/tenants`: `PlatformAdminOnly`.
+- `POST /api/users`: `PlatformAdmin` (any) or `TenantAdmin` (only within own tenant).
+- `POST /api/users/{user_id}/apikeys`:
+  - `SelfOrTenantAdmin` targeting `user_id`’s tenant; OR bootstrap if user has zero keys.
+- `DELETE /api/users/{user_id}/apikeys/{key_id}`:
+  - `SelfOrTenantAdmin` targeting `user_id`’s tenant.
+- `GET /api/protected`: any authenticated role.
+
+## Backward Compatibility
 
-## Objective
+- Legacy cache entries without `role`: on first use, reconstruct `User` from events, compute `role`, update cache entry with TTL.
+- Tests updated to include `Authorization: Bearer {api_key}` where required.
 
-Introduce role-based authorization aligned with multi-tenancy to control access to protected endpoints using existing API key authentication. Enforce PlatformAdmin (global), TenantAdmin (tenant-scoped), and Pilot (self-scoped) permissions in the API gateway.
+## Telemetry
 
-## Non-Goals (Step 8)
-
-- No UI changes.
-- No JWT/OIDC yet (API keys only).
-- No role-change flows (assignment/elevation).
-- No broad endpoint coverage beyond current API-key routes (expand later).
-
-## Current State (Summary)
-
-- API key authentication via middleware `api_key_auth` populates `AuthenticatedUser { user_id, tenant_id }`.
-- `User` aggregate already tracks `role: proto::user::Role` and `tenant_id: Option<String>`.
-- Read model `users` table stores `role` as string; projections exist.
-- API key handlers implemented with cache entries keyed by plain API key.
-
-## Deliverables
-
-- Enriched cached `AuthenticatedUser` with `role`.
-- Authorization helper/policy in gateway with unit tests.
-- Authorization enforced for API key create/revoke routes.
-- Integration tests validating allow/deny matrix and tenant isolation.
-- Projection verification ensuring role is persisted consistently.
-
----
-
-## RBAC Model
-
-### Roles (proto)
-
-- PlatformAdmin (global scope)
-- TenantAdmin (tenant scope)
-- Pilot (self scope)
-- Unspecified (invalid for authorization)
-
-### Semantics
-
-- PlatformAdmin: Full access across all tenants.
-- TenantAdmin: Manage users/resources only within their tenant.
-- Pilot: Manage own resources only (self-service).
-
-### Multi-tenancy Constraints
-
-- For non-PlatformAdmin, all actions must satisfy `ctx.tenant_id == resource_tenant_id`.
-
----
-
-## Data & Contracts
-
-### Domain
-
-- `libs/core-lib/src/domain/user.rs`
-  - Add getters:
-    - `pub fn role(&self) -> Role`
-    - `pub fn id(&self) -> &str`
-  - Keep existing `tenant_id()`.
-
-### Protobuf / Events
-
-- No change (role already set at registration).
-
-### Read Models
-
-- `apps/projection-worker`:
-  - Users table already has `role VARCHAR(50)`.
-  - Optional future index for large datasets:
-
-    ```sql
-    -- sql
-    CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users(tenant_id, role);
-    ```
-
-### Cache Shape
-
-- Extend `AuthenticatedUser`:
-
-  ```rust
-  // rust
-  #[derive(Clone, Debug, Serialize, Deserialize)]
-  pub struct AuthenticatedUser {
-      pub user_id: String,
-      pub tenant_id: Option<String>,
-      pub role: String, // "PlatformAdmin" | "TenantAdmin" | "Pilot"
-  }
-  ```
-
-- Backward compatibility: Enrich legacy entries (missing `role`) on first use in middleware/handler by reading from `users` read model and re-writing the cache entry.
-
----
-
-## Gateway AuthZ Design
-
-### New Module
-
-- `apps/api-gateway/src/application/authz.rs`
-
-  ```rust
-  // rust
-  use axum::http::StatusCode;
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum AuthRole { PlatformAdmin, TenantAdmin, Pilot }
-
-  #[derive(Debug, Clone)]
-  pub enum Requirement {
-      PlatformAdminOnly,
-      SelfOrTenantAdmin { target_user_id: String, target_tenant_id: Option<String> },
-      // Extend with resource-based constraints as endpoints grow
-  }
-
-  pub fn parse_role(s: &str) -> Option<AuthRole> {
-      match s {
-          "PlatformAdmin" | "ROLE_PLATFORM_ADMIN" => Some(AuthRole::PlatformAdmin),
-          "TenantAdmin"   | "ROLE_TENANT_ADMIN"   => Some(AuthRole::TenantAdmin),
-          "Pilot"         | "ROLE_PILOT"          => Some(AuthRole::Pilot),
-          _ => None,
-      }
-  }
-
-  pub fn authorize(
-      ctx_user_id: &str,
-      ctx_tenant_id: &Option<String>,
-      ctx_role: AuthRole,
-      req: Requirement,
-  ) -> Result<(), StatusCode> {
-      match req {
-          Requirement::PlatformAdminOnly => {
-              if ctx_role == AuthRole::PlatformAdmin { Ok(()) } else { Err(StatusCode::FORBIDDEN) }
-          }
-          Requirement::SelfOrTenantAdmin { target_user_id, target_tenant_id } => {
-              if ctx_role == AuthRole::PlatformAdmin { return Ok(()); }
-              if target_user_id == ctx_user_id { return Ok(()); }
-              // TenantAdmin must match tenant
-              if ctx_role == AuthRole::TenantAdmin && ctx_tenant_id.is_some() && ctx_tenant_id == &target_tenant_id {
-                  return Ok(());
-              }
-              Err(StatusCode::FORBIDDEN)
-          }
-      }
-  }
-  ```
-
-### Enforcement Points (Step 8 Scope)
-
-- POST `/api/users/{user_id}/apikeys`
-- DELETE `/api/users/{user_id}/apikeys/{key_id}`
-
-Rule for both:
-
-- Allow if:
-  - PlatformAdmin, or
-  - TenantAdmin where `ctx.tenant_id == target_user.tenant_id`, or
-  - Pilot where `path.user_id == ctx.user_id`.
-- Otherwise 403 (do not leak resource existence).
-
-### Resource Tenant Resolution
-
-- If `target_user_id != ctx.user_id`:
-  - Resolve `target_tenant_id` from read model: `SELECT tenant_id FROM users WHERE user_id = $1`.
-  - Pass it to `authorize`.
-- Use the gateway’s existing `PgPool` if available; if absent, add `pg_pool: sqlx::PgPool` to `AppState` (same pattern as cache injection).
-
----
-
-## Middleware & Cache Integration
-
-### api_key_auth
-
-- On cache hit:
-  - Try to deserialize `AuthenticatedUser`.
-  - If `role` missing, load `role` for `ctx.user_id` from read model and update cache entry in-place before proceeding.
-- On cache miss/error: 401 (unchanged).
-
-### GenerateApiKey handler
-
-- When creating `AuthenticatedUser`, populate `role` string from aggregate:
-
-  ```rust
-  // rust
-  let role_str = format!("{:?}", user.role()); // or map explicitly to "PlatformAdmin" etc.
-  let authenticated_user = AuthenticatedUser { user_id: input.user_id.clone(), tenant_id: user.tenant_id().cloned(), role: role_str };
-  ```
-
----
-
-## Projection Worker
-
-- Verify UserRegistered projection writes `users.role` consistently with strings expected by parse_role.
-- Add/adjust unit tests to assert role persistence and idempotency.
-
----
-
-## Testing Strategy
-
-### Unit (Policy)
-
-- Cases:
-  - Pilot self: allow.
-  - Pilot other (same tenant): deny.
-  - TenantAdmin same-tenant other-user: allow.
-  - TenantAdmin cross-tenant: deny.
-  - PlatformAdmin cross-tenant: allow.
-
-### Integration (Gateway)
-
-- Seed:
-  - Tenants: A, B.
-  - Users: platformAdmin (no tenant), tenantAdminA (A), pilotA (A), pilotB (B).
-- Generate API keys for each; cache entries must include `role`.
-- Cases:
-  - pilotA (Bearer) -> POST apikeys for pilotA: 200
-  - pilotA -> POST apikeys for pilotB: 403
-  - tenantAdminA -> POST apikeys for pilotA: 200
-  - tenantAdminA -> POST apikeys for pilotB: 403
-  - platformAdmin -> POST apikeys for pilotB: 200
-  - Mirror above for DELETE revoke.
-- Backfill path:
-  - Manually create a legacy cache entry without `role`; assert first request enriches and proceeds.
-
----
-
-## Step-by-Step Work Breakdown
-
-1) Core-lib (Getters) — S
-
-- File: `libs/core-lib/src/domain/user.rs`
-- Add:
-
-  ```rust
-  // rust
-  impl User {
-      pub fn id(&self) -> &str { &self.id }
-      pub fn role(&self) -> Role { self.role }
-  }
-  ```
-
-- Add simple unit checks.
-
-2) Gateway: Cache Model — M
-
-- File: `apps/api-gateway/src/application/middleware/auth.rs`
-- Update struct with `pub role: String`.
-- In `api_key_auth`, implement legacy enrichment path:
-  - If deserialization lacks `role` or empty, query read model for user’s role, update cache, continue.
-
-3) GenerateApiKey: Populate Role — S
-
-- File: `apps/api-gateway/src/application/commands/generate_api_key.rs`
-- Populate `role` in `AuthenticatedUser` from aggregate state before caching.
-
-4) AuthZ Module — M
-
-- New File: `apps/api-gateway/src/application/authz.rs` with `AuthRole`, `Requirement`, `parse_role`, `authorize`.
-- Unit tests covering the matrix.
-
-5) Route Enforcement — M-L
-
-- Files: API-key routes (same as tests reference `apps/api-gateway/tests/api_key_routes.rs`).
-- Extract `AuthenticatedUser` from request extensions.
-- Resolve `target_tenant_id` (self: reuse ctx; other: query read model).
-- Call `authorize(...)`; on `Err`, return 403.
-
-6) Projection Verification — S
-
-- Ensure role string mapping matches `parse_role` expectations.
-- Add/adjust unit tests in projection worker.
-
-7) Integration Tests — M
-
-- Extend `apps/api-gateway/tests/api_key_routes.rs` (or add `authz_routes.rs`) with matrix above.
-
-8) Formatting/Linting — S
-
-- `cargo fmt`, `cargo clippy -D warnings`.
-- Biome for JS/TS (no changes expected this step).
-
----
+- Log authorization decisions at `debug`.
+- Log denials at `warn` with reason (`forbidden`, `unauthorized`, missing header).
+- Avoid logging secrets; only log `key_id` for key operations.
 
 ## Risks & Mitigations
 
-- Stale roles in cache after role change: Accept for Step 8; future RoleChanged event will invalidate cache.
-- Cross-tenant leakage: Always return 403; avoid existence leaks.
-- Resource lookup latency: Single `SELECT` per cross-user action; acceptable. Add index later if needed.
+- Risk: Over-enforcement breaking existing tests.
+  - Mitigation: Add bootstrap path for first API key; update tests to set headers where appropriate.
+- Risk: Cache misses causing increased event-store reads during legacy period.
+  - Mitigation: Rehydrate cache with TTL to amortize cost.
 
----
+## Step-by-Step Implementation Plan
 
-## Acceptance Criteria
+1. Core-lib domain (if not present)
+   - Add/verify getters on `User`: `id()`, `role()`, `tenant_id()`, `api_key_count()`.
+   - Ensure registration invariants enforce tenant constraints for roles.
+   - Unit tests: registration with/without tenant for each role; key counting after events.
 
-- Cached `AuthenticatedUser` includes `role` for newly generated keys; legacy entries enriched at first use.
-- API-key create/revoke routes enforce RBAC rules and tenant isolation as specified.
-- Unit and integration tests pass for allow/deny matrix.
-- No DB schema changes required; projection writes `users.role` consistently.
+2. api-gateway authz module
+   - Create `application/authz.rs` with:
+     - `AuthRole`, `parse_role`, `Requirement`, `authorize()`.
+   - Unit tests for `authorize()` positive/negative cases.
 
----
+3. Middleware enrichment
+   - In `application/middleware/auth.rs`:
+     - Deserialize `AuthenticatedUser` from cache; if missing `role`, rehydrate from events; update cache with TTL.
+   - Test: end-to-end middleware with enriched legacy cache data.
 
-## Follow-ups (Beyond Step 8)
+4. Route guards
+   - For `POST /api/users/{user_id}/apikeys`:
+     - If `Authorization` exists: enforce `SelfOrTenantAdmin` with target tenant derived from aggregate.
+     - Else bootstrap: only allow if target user has no existing API keys.
+   - For `DELETE /api/users/{user_id}/apikeys/{key_id}`:
+     - Require auth; enforce `SelfOrTenantAdmin`.
+   - For `POST /api/users` and `POST /api/tenants`:
+     - Enforce respective requirements.
+   - Integration tests:
+     - Generate + revoke with auth.
+     - Revoke with wrong tenant admin should be forbidden.
+     - Bootstrap generate allowed only once without auth.
 
-- Centralize tenant resolution helpers.
-- Add role change flows and RoleChanged event with cache invalidation.
-- Expand authorization to additional endpoints (Steps 9–12).
-- Consider route-level Tower layers for static permissions once resource lookups are standardized.
+5. Projections & migrations
+   - If the `users` read model lacks `role`:
+     - Add migration `03__users_add_role_column.sql`.
+     - Update projection logic to write `role`.
+   - Testcontainers-based integration can be deferred if timeboxed; include a TODO and staged plan.
+
+6. Caching contract
+   - Define serialized `AuthenticatedUser`:
+     - `{ user_id: String, tenant_id: Option<String>, role: String }`.
+   - TTL (e.g., 30 days) for new entries and rehydrated entries.
+
+7. Error mapping
+   - `401 Unauthorized` for missing/invalid credentials.
+   - `403 Forbidden` for valid credentials lacking privileges.
+   - Keep existing mapping for core errors.
+
+8. Documentation updates
+   - Update `doc/plans/phase-1-plan.md` status when done.
+   - Update memory bank: `activeContext.md`, `progress.md`, `systemPatterns.md` with chosen patterns and enforcement matrix.
+
+## Test Plan
+
+- Unit tests:
+  - `authz::authorize()` covering all branches.
+  - `User` invariants and getters.
+
+- Integration tests (Axum):
+  - Happy paths:
+    - PlatformAdmin creates tenant; TenantAdmin creates user in same tenant; user self-generates key with auth.
+  - Denied paths:
+    - TenantAdmin creates user in other tenant.
+    - Pilot attempts to create/revoke keys for others.
+    - Revoke with missing/invalid auth.
+  - Bootstrap:
+    - First key generation without auth allowed; second without auth denied.
+
+- If available later: testcontainers
+  - Validate projection role persistence and cache enrichment working against real infra.
+
+## Rollout & Feature Flag
+
+- Soft-rollout: keep bootstrap path.
+- Optionally guard strict enforcement with an env flag if needed (default: enabled).
+
+## Definition of Done
+
+- All guarded routes pass new RBAC tests.
+- Legacy cache entries are auto-enriched with role on first use.
+- Migrations (if needed) applied and projections updated.
+- Documentation and Memory Bank updated.
+
+## Alternatives Considered
+
+1) Per-route closures for authorization checks  
+
+    - Pros: Simple, explicit.  
+    - Cons: Duplicated logic, hard to keep consistent.  
+    - Verdict: Not chosen.
+
+2) Tower layers for role-aware middleware per-scope  
+
+    - Pros: Composable; can attach at router subtree.  
+    - Cons: Requires request-time access to path params/target entity, which is awkward.  
+    - Verdict: Partial use acceptable, but main checks remain in handlers.
+
+3) Attribute macros for declarative policies  
+
+    - Pros: DRY, declarative.  
+    - Cons: Complexity overhead for MVP; macro maintenance.  
+    - Verdict: Not chosen for Phase 1.
+
+Chosen approach: small policy module + handler-level guards. It’s explicit, testable, and simple.
+
+## Work Breakdown (Tasks)
+
+- core-lib
+  - Verify/add getters on `User`.
+  - Add/verify invariants for role/tenant at registration.
+  - Unit tests for invariants and key counting.
+
+- api-gateway
+  - Add `application/authz.rs` with `Requirement` and `authorize()`.
+  - Update `application/middleware/auth.rs` to enrich legacy cache entries with role.
+  - Enforce guards in:
+    - `POST /api/users` (PA or TA)
+    - `POST /api/tenants` (PA)
+    - `POST /api/users/{user_id}/apikeys` (SelfOrTenantAdmin or bootstrap)
+    - `DELETE /api/users/{user_id}/apikeys/{key_id}` (SelfOrTenantAdmin)
+  - Update/extend integration tests (`tests/api_key_routes.rs`).
+
+- projection-worker
+  - Add migration for `users.role` if missing; update projection handlers to write role.
+
+- docs
+  - Update Phase 1 plan and memory bank after completion.
+
+## Estimated Effort
+
+- Implementation: 0.5–1 day
+- Tests: 0.5 day
+- Docs and cleanup: 0.25 day
