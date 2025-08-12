@@ -9,7 +9,9 @@ use core_lib::{
 };
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
-use tracing::{Level, info};
+use tracing::{Level, info, warn};
+use sqlx::postgres::PgPoolOptions;
+use dotenvy::dotenv;
 use tracing_subscriber::FmtSubscriber;
 
 // main.rs now only contains the binary entry point and setup specific to running the application.
@@ -25,6 +27,31 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     info!("Starting API Gateway v{}...", env!("CARGO_PKG_VERSION"));
+    // Load environment (.env) if present
+    dotenv().ok();
+
+    // Optional Postgres pool for query endpoints (Step 9)
+    let pg_pool = match std::env::var("DATABASE_URL") {
+        Ok(url) => {
+            match PgPoolOptions::new()
+                .max_connections(5)
+                .connect(&url)
+                .await {
+                    Ok(pool) => {
+                        info!("Connected to Postgres for read model queries");
+                        Some(pool)
+                    }
+                    Err(e) => {
+                        warn!("Failed to connect to Postgres (queries disabled): {}", e);
+                        None
+                    }
+                }
+        }
+        Err(_) => {
+            warn!("DATABASE_URL not set (queries disabled)");
+            None
+        }
+    };
 
     // --- Dependency Injection Setup ---
     // TODO: Replace with configuration loading and real adapters (Postgres, RabbitMQ, Redis)
@@ -40,6 +67,7 @@ async fn main() {
         tenant_repo: tenant_repo.clone(),
         event_bus: event_bus.clone(),
         cache: cache.clone(),
+        pg_pool,
     };
 
     // Create the application router using the function from lib.rs

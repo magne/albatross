@@ -4,7 +4,7 @@ use core_lib::CoreError;
 pub mod commands;
 pub mod middleware; // Added
 pub mod authz; // RBAC helpers
-// pub mod queries; // Add later
+pub mod query; // Added queries module (named query)
 
 // Define a top-level error type for the application layer
 #[derive(thiserror::Error, Debug)]

@@ -122,6 +122,7 @@ This plan outlines the steps for implementing the Minimum Viable Product (MVP) f
     * Add necessary code comments and documentation.
 
 **Cross-Cutting Improvements / Technical Debt Identified (Rolling List):**
+
 * Replace placeholder password hashing in registration with Argon2 (consistency with API key hashing).
 * Extract shared aggregate replay helper (reduce duplication in handlers & middleware).
 * Centralize TTL constants for cache usage (auth vs queries).

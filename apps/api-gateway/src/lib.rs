@@ -20,6 +20,7 @@ use rust_embed::RustEmbed;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{error, info}; // Keep tracing
+use sqlx::PgPool;
 
 // Re-export or declare modules needed by public items
 pub mod application; // Make application module public
@@ -32,6 +33,7 @@ use application::{
     },
     middleware::{AuthenticatedUser, api_key_auth},
     authz::{authorize, parse_role, Requirement},
+    query::{handle_list_tenants, handle_list_users},
 };
 use cqrs_es::Aggregate;
 use prost::Message;
@@ -62,13 +64,11 @@ pub struct GenerateApiKeyResponse {
 // Holds shared dependencies
 #[derive(Clone)]
 pub struct AppState {
-    // Make pub
-    // Use pub fields if tests need to construct it directly, otherwise keep private
-    // and provide a constructor if needed. Let's make them pub for simplicity now.
     pub user_repo: Arc<dyn Repository>,
     pub tenant_repo: Arc<dyn Repository>,
     pub event_bus: Arc<dyn EventPublisher>,
     pub cache: Arc<dyn Cache>,
+    pub pg_pool: Option<PgPool>, // Added optional PgPool for query endpoints
 }
 
 // --- Public Functions ---
@@ -77,15 +77,30 @@ pub struct AppState {
 pub fn create_app(app_state: AppState) -> Router {
     // Make pub
     let api_routes = Router::new()
-        .route("/users", post(handle_register_user_request)) // Assumes handler is pub or in scope
+        // Registration (bootstrap allowed) - POST only
+        .route("/users", post(handle_register_user_request))
+        // Listing endpoints (auth required) placed on separate list paths to avoid protecting bootstrap registration route
+        .route(
+            "/users/list",
+            get(handle_list_users).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
         .route(
             "/tenants",
-            post(handle_create_tenant_request)
-                .route_layer(middleware::from_fn_with_state(
-                    app_state.clone(),
-                    api_key_auth,
-                )),
-        ) // Protected: PlatformAdmin only
+            post(handle_create_tenant_request).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
+        .route(
+            "/tenants/list",
+            get(handle_list_tenants).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
         .route(
             "/users/{user_id}/apikeys",            // Use {} syntax for path parameters
             post(handle_generate_api_key_request),

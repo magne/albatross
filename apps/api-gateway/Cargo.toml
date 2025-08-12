@@ -23,8 +23,15 @@ tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] } # Added env-filter feature
 uuid = { workspace = true, features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+sqlx = { workspace = true, features = ["runtime-tokio-rustls","postgres","uuid","chrono"] }
+dotenvy.workspace = true
 rand = "0.9.1" # Reverted to simple version
 argon2 = "0.5.3" # Keep argon2 specific for now, or move to workspace if needed elsewhere
 
 [dev-dependencies]
 axum-test = "17.3.0"
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
+tokio = { workspace = true, features = ["full"] }
+serde_json.workspace = true

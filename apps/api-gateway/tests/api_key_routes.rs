@@ -28,6 +28,7 @@ fn setup_test_app() -> TestServer {
         tenant_repo: tenant_repo.clone(),
         event_bus: event_bus.clone(),
         cache: cache.clone(),
+        pg_pool: None,
     };
 
     let app: Router = create_app(app_state);
