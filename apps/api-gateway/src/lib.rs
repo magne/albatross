@@ -24,6 +24,7 @@ use sqlx::PgPool;
 
 // Re-export or declare modules needed by public items
 pub mod application; // Make application module public
+use application::ws::ws_handler;
 use application::{
     commands::{
         create_tenant::handle_create_tenant_request, // Keep if needed by create_app
@@ -69,6 +70,7 @@ pub struct AppState {
     pub event_bus: Arc<dyn EventPublisher>,
     pub cache: Arc<dyn Cache>,
     pub pg_pool: Option<PgPool>, // Added optional PgPool for query endpoints
+    pub redis_client: Option<redis::Client>, // Redis client for WS pubsub
 }
 
 // --- Public Functions ---
@@ -120,6 +122,7 @@ pub fn create_app(app_state: AppState) -> Router {
 
     Router::new()
         .nest("/api", api_routes)
+        .route("/api/ws", get(ws_handler))
         .route("/assets/{*path}", get(static_asset)) // Make handler pub
         .route("/", get(serve_index)) // Make handler pub
         .fallback(get(serve_index)) // Use same handler

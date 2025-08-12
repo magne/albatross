@@ -5,6 +5,7 @@ pub mod commands;
 pub mod middleware; // Added
 pub mod authz; // RBAC helpers
 pub mod query; // Added queries module (named query)
+pub mod ws; // WebSocket real-time module (Step 10)
 
 // Define a top-level error type for the application layer
 #[derive(thiserror::Error, Debug)]

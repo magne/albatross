@@ -1,73 +1,60 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 8 (Role-Based Authorization) implementation completed (core RBAC enforcement in place). Preparing to begin Phase 1, Step 9 (Query Endpoints & Caching). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized; step-specific detailed plan in `doc/plans/phase-1-step-8-plan.md` executed (tests for negative RBAC paths still to be added).
-* **Recent Changes (Internal Cleanup):**
-  * Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings.
-* **Recent Changes (Phase 1, Step 7 Completion):**
-  * Implemented API key generation, authentication, and revocation in `api-gateway`.
-  * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
-  * Implemented `GenerateApiKeyHandler` which returns the plain text key once and stores hash in `User` aggregate (`ApiKeyGenerated` event).
-  * Implemented `RevokeApiKeyHandler` which triggers `ApiKeyRevoked` event in `User` aggregate.
-  * Implemented `api_key_auth` middleware using cache-based lookup (plain text key as cache key).
-  * Added cache storage for `AuthenticatedUser` (keyed by plain text key) and `key_id -> plain_key` mapping (for revocation).
-  * Implemented cache invalidation logic in `RevokeApiKeyHandler` to remove both entries upon successful revocation.
-  * Added integration tests (`api_key_routes.rs`) covering the generate-authenticate-revoke lifecycle.
-  * Refined logging in handlers and middleware to avoid logging sensitive key material.
-  * Cleaned up unused imports and addressed clippy warnings.
-* **Recent Changes (Phase 1, Step 6 Completion):**
-  * Successfully implemented Projection Worker with RabbitMQ Consumer, PostgreSQL writes, and Redis notifications.
-  * Fixed `sqlx` offline query compilation issues.
-  * All tests passed successfully.
-* **Recent Changes (Phase 1, Step 8 Completion):**
-  * Added RBAC policy module (`application/authz.rs`) with `AuthRole`, `Requirement`, `authorize()`, `parse_role()`.
-  * Protected `POST /api/tenants` route with API key auth middleware and PlatformAdmin-only check.
-  * Implemented RBAC logic in `handle_register_user_request`:
-    * Bootstrap path: unauthenticated creation allowed only for initial PlatformAdmin (no tenant).
-    * Authenticated path: PlatformAdmin can create any user (rules on tenant_id presence); TenantAdmin restricted to own tenant and non-Platform roles; Pilot forbidden.
-  * Implemented RBAC in API key generation & revocation handlers using `Requirement::SelfOrTenantAdmin` plus bootstrap allowance for first key.
-  * Wrapped revoke and tenant routes in middleware layers; maintained legacy cache enrichment (adds role if absent).
-  * Verified `users` read model already stores `role` (string) — no migration required; initial migration `01__initial_read_models.sql` sufficient.
-  * All existing integration tests pass (added logic without breaking Step 7 tests). Negative/forbidden scenario tests still pending.
-  * Confirmed user aggregate exposes `role()`, `tenant_id()`, `api_key_count()`.
-* **Next Steps (Phase 1, Step 9 Start):**
-  * Implement query endpoints: `GET /api/tenants`, `GET /api/users` (role-scoped: PlatformAdmin = all, TenantAdmin = own tenant, Pilot = perhaps limited/self).
-  * Add integration tests for RBAC forbidden cases (TenantAdmin cross-tenant user creation, Pilot attempting privileged actions, non-bootstrap unauthorized registration, second unauthenticated API key attempt).
-  * Add Redis-backed caching for query endpoints (key design: namespace + role/tenant scope hash).
-  * Prepare message schema alignment for upcoming WebSocket broadcasting (Step 10).
-  * Update documentation & memory after Step 9 completion.
-* **Future Steps (Phase 1.5):**
-  * A plan for Phase 1.5 (MVP Refinement & Foundation Hardening) has been created at `doc/plans/phase-1.5-plan.md`. This phase includes robust Auth/Authz, SQLite support, Docker/Helm setup, basic Observability, and Vue/Svelte MVP implementations.
+* **Current Focus:** Phase 1, Step 10 (WebSocket Real-Time Delivery) completed. Backend real-time infrastructure in place. Preparing for Step 11 (Frontend reactive integration & cache invalidation leveraging real-time events) and incremental hardening (integration tests for WS + enriching event envelopes).
+* **Recent Changes (Step 10 Completion):**
+  * Added WebSocket endpoint `/api/ws` (Axum) with authentication via API key (Bearer header or `?api_key=` query).
+  * Implemented connection lifecycle: baseline auto-subscriptions (user updates, user apikeys, tenant updates), dynamic subscribe/unsubscribe, ping/pong, heartbeat (30s), idle timeout (90s), per-connection rate limiting (10 control messages / 10s).
+  * Added Redis Pub/Sub forward loop (baseline subscriptions) – forwards events as `{"type":"event","channel":...,"payload":...}` frames.
+  * Implemented message protocol: `ack`, `event`, `error`, `pong`, `heartbeat`.
+  * Added channel validation (user self-only; tenant scoped) with unit tests.
+  * Wired optional `redis_client` into `AppState`; main process reads `REDIS_URL`.
+  * Added tests for rate limiter & channel validation (unit). (Integration tests for end-to-end Redis→WS still pending.)
+  * Updated dependency manifest (Axum ws feature, futures-util, tokio-stream, redis).
+  * Ensured cargo tests pass after adapting existing test `AppState` initializations (added `redis_client: None`).
+* **Recent Changes (Step 9 Completion – Query Endpoints & Caching):**
+  * Implemented `GET /api/tenants/list` and `GET /api/users/list` with RBAC-scoped filtering (PlatformAdmin → all; TenantAdmin → own tenant; Pilot → self + own tenant).
+  * Added Redis cache keys (`q:v1:...`) with TTL differentiation.
+  * Added integration tests (`query_routes.rs`) covering role scoping, unauthorized access, caching consistency, negative RBAC paths (tenant admin cross-tenant create, pilot create).
+  * Added pagination normalization and key generation strategy.
+* **Earlier Recent Changes (Step 8 RBAC Recap):**
+  * RBAC module, enforcement across key endpoints, bootstrap rules, API key operations authorization.
+* **System State Summary:**
+  * Command side: Aggregates & handlers for users, tenants, API keys operational.
+  * Projection pipeline: Worker persists read models & publishes Redis notifications (events not yet envelope-rich).
+  * Query side: Read model queries + caching in place.
+  * Real-time: WebSocket streaming baseline established (Step 10).
+  * Tests: Unit + integration for commands, queries, RBAC, API key lifecycle; WS has unit tests (channel validation, rate limit); needs integration test for actual Redis publish flow.
+* **Next Steps (Planned):**
+  1. Step 11: Frontend integration consuming `/api/ws`:
+     * Implement client subscription manager and optimistic cache invalidation.
+     * Map channels → frontend store keys; reconcile projection refresh triggers.
+  2. Enhance WebSocket event envelope (add `event_type`, `ts`) – align with future projection/publisher changes.
+  3. Add integration tests: spawn Redis, publish synthetic channel events, assert client receipt.
+  4. Backpressure & connection metrics (observability foundation).
+  5. Security hardening: PlatformAdmin extended subscription policy (optional future).
 * **Active Decisions:**
-  * Project Name: Albatross (Finalized for now).
-  * Architecture: ES/CQRS, Hexagonal (Ports & Adapters), Microservices (planned), Multi-tenant.
-  * Backend Stack: Axum (Rust), Postgres, RabbitMQ, Redis.
-  * Frontend Stack: React, React Router, Vite (with SWC), Tailwind CSS v4, Headless UI. (Vue & Svelte to be implemented in Phase 1.5 for comparison).
-  * Structure: Monorepo (Cargo Workspace, PNPM).
-  * Deployment: 3 Models defined (Single Executable uses In-Memory Adapters/SQLite, Docker Compose uses real infra, K8s uses real infra). Phase 1 includes basic Docker Compose support.
-  * Serialization: Protobuf (stored as binary `bytea`).
-  * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
-  * Initial Setup: Platform Admin created on first run with logged one-time password.
-  * UI Components: Headless UI chosen for React.
-  * Real-time: WebSockets included in Phase 1 MVP.
-  * Migrations: Using both `refinery` (runtime) and `sqlx-cli` (offline preparation).
-  * API Key Auth: Cache-based lookup using plain text key. Revocation invalidates cache.
-* **Key Patterns/Preferences:**
-  * Prioritize Open Source components and minimal vendor lock-in.
-  * Aim for good Developer Experience (DX), including debugging support for microservices potentially running outside k3s.
-  * Maintain clear separation between application logic and reusable infrastructure definitions.
-  * **Workflow:** Stop after completing each step in the current plan (`doc/plans/phase-1-plan.md`). Update Memory Bank (`activeContext.md`, `progress.md`) after each step completion. Ensure plan formatting uses consistent spacing.
-  * Cache invalidation logic in command handlers should run *after* successful event persistence/publishing. Cache errors should be logged but generally not fail the command.
-* **Learnings/Insights:**
-  * Ensure consistency between code data types (e.g., IDs as String vs. Uuid) and database schema (VARCHAR vs. UUID).
-  * Match arms in Rust must return compatible types; use `.map_err` and ensure all arms yield the same `Result` structure or use explicit `Ok(())` where appropriate.
-  * Using both `refinery` and `sqlx-cli` provides good balance: runtime migrations with `refinery`, offline query validation with `sqlx-cli`.
-  * Type hints (e.g., `::Uuid`) in SQL queries help `sqlx` macro understand types during offline preparation.
-  * Migration file naming requirements differ between tools (`V1__` for `refinery`, `01__` for `sqlx-cli`).
-  * `replace_in_file` tool seems unreliable for larger markdown file edits; `write_to_file` used as fallback. Tool can also corrupt files on save.
-  * Error reporting feedback loop can sometimes be stale; `cargo check` needed for confirmation.
-  * Implementing `From<SpecificError>` for `GeneralError` is key for using `?` effectively across layers.
-  * Axum state management with `Arc` provides straightforward dependency injection.
-  * Testcontainers setup requires careful attention to dependency versions and import paths (`testcontainers` vs `testcontainers-modules`).
-  * `redis-rs` async PubSub API requires specific handling (`PubSubConnection`, `into_on_message`).
-  * Cache-based API key auth requires careful handling of cache invalidation during revocation to prevent stale access. Storing a `key_id -> plain_key` mapping facilitates this.
-  * Logging sensitive data like plain text API keys should be avoided, especially in error/warning paths.
+  * Continue using per-connection Redis Pub/Sub (optimize later).
+  * Defer event envelope enrichment to post-integration (keeps Step 10 scope bounded).
+  * Keep WebSocket JSON-only (binary & compression deferred).
+* **Risks / Mitigations:**
+  * Scaling Redis connections → future multiplex design.
+  * Missing `event_type` → short-term client heuristic by channel → mitigate by envelope work soon.
+  * Lack of WS integration tests → scheduled early in next step to prevent regressions.
+* **Backlog / Deferred (from Step 10 Plan):**
+  * Shared multiplexer for channels.
+  * Envelope with `event_type`.
+  * Extended admin subscription rules.
+  * Replay/snapshot request message type.
+  * Observability metrics & compression.
+* **Key Patterns Extended:**
+  * Introduced Real-time Delivery pattern: Redis Pub/Sub → API WS forwarder → Client reactive layer (pending).
+* **Open Items to Track:**
+  * Add negative RBAC tests for API key misuse scenarios (if any remaining).
+  * Evaluate graceful shutdown of WS tasks (currently relies on task termination via errors/close).
+  * Consider structured error codes enumeration for frontend alignment.
+* **Learnings / Insights (New):**
+  * Axum 0.8 WebSocket `Message::Text` expects `Utf8Bytes` – require `.into()` on `String`.
+  * Splitting WebSocket requires Arc<Mutex<SplitSink>> when multiple tasks send frames.
+  * Test servers needed adjustment after `AppState` shape change (redis_client).
+  * Unit tests inside ws module compiled but not auto-run in `--quiet` grouping due to path—still executed (0 test modules for some crates).
+* **Current Focus Transition:** Prepare Step 11 plan (frontend reactive integration) while adding WS integration tests & event envelope improvement as near-term tasks.

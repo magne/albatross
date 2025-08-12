@@ -1,86 +1,49 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 8 completed (core RBAC implemented). Ready to start Step 9 (Query Endpoints & Caching). Plan file `doc/plans/phase-1-plan.md` (v7) synchronized; detailed RBAC plan executed.
+* **Current Status:** Phase 1, Step 10 (WebSocket Real-Time Delivery) COMPLETED. All existing tests (unit + integration) pass after adapting for new `redis_client` in `AppState`. Preparing to start Step 11 (Frontend reactive integration & real-time driven cache invalidation). 
 * **Completed Features/Milestones:**
-  * **Internal Cleanup:** Refactored `projection-worker` handlers to align ID types (VARCHAR) with DB schema and fixed related compilation errors/warnings. - **DONE**
-  * **Phase 1, Step 8:** Role-Based Authorization (Backend - `apps/api-gateway`, `libs/core-lib`) - **DONE**
-    * Added `application/authz.rs` with `AuthRole`, `Requirement`, `authorize()`, `parse_role()`.
-    * Enforced PlatformAdmin-only tenant creation (`POST /api/tenants`) behind API key auth middleware.
-    * Implemented bootstrap registration rule (first PlatformAdmin without auth; all others require auth).
-    * Added RBAC checks to user registration, API key generation (self or tenant admin or bootstrap), and revocation (self or tenant admin).
-    * Added middleware protection to revoke and tenant routes; ensured legacy cache enrichment path preserves behavior and adds role if missing.
-    * Confirmed read model already stores role (no migration required).
-    * All existing integration tests pass; negative RBAC tests pending (forbidden scenarios to be added in Step 9 or dedicated hardening pass).
-  * **Phase 1, Step 7:** API Key Authentication & Management (Backend - `apps/api-gateway`, `libs/core-lib`) - **DONE**
-    * Implemented API key generation, authentication (cache-based), and revocation.
-    * Added `POST /api/users/{user_id}/apikeys` and `DELETE /api/users/{user_id}/apikeys/{key_id}` endpoints.
-    * Implemented `GenerateApiKeyHandler` & `RevokeApiKeyHandler`.
-    * Implemented `api_key_auth` middleware.
-    * Added integration tests (`api_key_routes.rs`).
-    * Refined logging.
-  * **Phase 1, Step 6:** DB Logic in Projections & Notifications (Backend - `apps/projection-worker`) - **DONE**
-    * Set up DB connection pool (`sqlx::PgPool`).
-    * Ran migrations on startup.
-    * Updated projection handlers for DB writes (`sqlx`).
-    * Implemented Redis Pub/Sub notification publishing.
-    * Added `UserApiKey` read model and migration (`02__add_user_api_keys.sql`).
-  * **Phase 1, Step 5:** Real Infrastructure Adapters & Integration Tests (Backend - `libs/core-lib`) - **DONE**
-    * Added dependencies (`sqlx`, `lapin`, `redis-rs`, `testcontainers-rs`).
-    * Implemented `PostgresEventRepository`, `RabbitMqEventBus`, `RedisCache`, `RedisEventBus`.
-    * Added integration tests using `testcontainers-rs`.
-  * **Phase 1, Step 4:** Projection Worker Skeleton & Migrations (Backend - `apps/projection-worker`) - **DONE**
-    * Created `apps/projection-worker` service.
-    * Defined initial Read Model schemas (`tenants`, `users`) and migration (`01__initial_read_models.sql`).
-    * Embedded migrations (`refinery`).
-    * Implemented basic event consumption loop (in-memory).
-  * **Phase 1, Step 3:** Initial Command Handlers & API Gateway Setup (Backend - `apps/api-gateway`) - **DONE**
-    * Implemented command handlers (`RegisterUserHandler`, `CreateTenantHandler`, `ChangePasswordHandler`, `GenerateApiKeyHandler` - initial version).
-    * Implemented basic command dispatch, Axum routes, state injection, error mapping.
-  * **Phase 1, Step 2:** Initial Domain Model & Protobuf (Backend - `libs/proto`, `libs/core-lib`) - **DONE**
-    * Defined Protobuf messages (`Tenant`, `User`, `PIREP`).
-    * Implemented Aggregate roots (`Tenant`, `User`, `Pirep`).
-  * **Phase 1, Step 1:** Core ES/CQRS Libs & In-Memory Adapters (Backend - `libs/core-lib`) - **DONE**
-    * Defined core Ports (Traits).
-    * Implemented `InMemoryEventRepository`, `InMemoryEventBus`, `InMemoryCache`.
-    * Added dependencies, organized modules.
-  * **Phase 0:** Project Setup, Scaffolding, Initial Config - **DONE**
-    * Finalized core tech stack.
-    * Established monorepo structure.
-    * Created initial service/library skeletons.
-    * Configured Protobuf build process.
-    * Scaffolded frontend project.
-    * Integrated Biome.
-    * Created basic Docker Compose infra definition.
-    * Created placeholder Helm definitions.
-    * Set up basic GitHub Actions CI.
-    * Implemented basic frontend asset embedding.
-
-* **Work In Progress:** None. Ready for Phase 1, Step 8.
-
-* **Upcoming Work (Phase 1, Step 9):** API Query Endpoints & Caching (Backend - `apps/api-gateway`)
-  * Implement `GET /api/tenants` and `GET /api/users` with role-scoped filtering:
-    * PlatformAdmin => all tenants/users
-    * TenantAdmin => users within own tenant (and own tenant record)
-    * Pilot => possibly self (and maybe tenant summary) — decide minimal scope
-  * Add Redis caching layer (key pattern: `q:{resource}:{scope_hash}` with TTL).
-  * Add negative RBAC integration tests (forbidden cross-tenant user creation, Pilot privilege elevation attempts, second unauthenticated registration attempt, unauthorized key generation after bootstrap).
-  * Introduce query abstraction (lightweight service or repository facade) reading projection DB (future: `sqlx::PgPool` injection).
-  * Prepare consistent response DTOs for upcoming WebSocket usage (Step 10).
-  * Update memory bank after completion.
-
-* **Known Issues/Bugs:** None specific yet.
-  * *Potential Risks:* Inherent complexity of ES/CQRS and microservices. Managing schema evolution. Ensuring robust multi-tenancy isolation. Operational overhead of chosen stack. Password handling in aggregates needs careful review. `LoginUser` command/handler flow needs implementation/refinement.
-
-* **Decision Log:** (Summary - See `activeContext.md` for more detail)
-  * Project Name: Albatross.
-  * Architecture: ES/CQRS, Hexagonal, Microservices (planned), Multi-tenant.
-  * Backend Stack: Rust/Axum, PostgreSQL, RabbitMQ, Redis.
-  * Frontend Stack: React/Vite/SWC, Tailwind CSS v4, Headless UI.
-  * Infrastructure Stack: PostgreSQL, RabbitMQ, Redis.
-  * Repo Structure: Monorepo (Cargo Workspace, PNPM).
-  * Serialization: Protobuf (`prost`, binary `bytea`).
-  * Deployment: 3 models (Single Executable, Docker Compose, K8s).
-  * Licensing: Dual AGPLv3+Commercial or BSL preferred.
-  * Linting/Formatting: Biome (JS/TS/JSON), cargo fmt/clippy (Rust).
-  * Migrations: `refinery` + `sqlx-cli`.
-  * API Key Auth: Cache-based lookup.
+  * **Phase 1, Step 10:** WebSocket Real-Time Delivery (Backend - `apps/api-gateway`)
+    * Added `/api/ws` endpoint with API key authentication (Bearer / optional query).
+    * Implemented baseline auto-subscriptions: `user:{id}:updates`, `user:{id}:apikeys`, `tenant:{tenant_id}:updates`.
+    * Dynamic subscribe/unsubscribe with validation, `ack` responses including accepted/rejected or removed/missing.
+    * Implemented event forwarding loop from Redis Pub/Sub (baseline channels) producing JSON event frames.
+    * Added heartbeat (30s), idle timeout (90s), ping/pong support, per-connection rate limiting (10 control messages / 10s).
+    * Added channel validation + rate limiter unit tests inside `ws.rs`.
+    * Wired optional `redis_client` in `AppState` + initialization from `REDIS_URL`.
+    * Updated test AppState initializations with `redis_client: None`.
+    * All tests pass (`cargo test --all`).
+    * Deferred: Envelope enrichment (`event_type`), integration test for Redis → WS flow, multiplex optimization.
+  * **Phase 1, Step 9:** Query Endpoints & Caching (Backend - `apps/api-gateway`) - **DONE**
+    * Implemented RBAC-scoped list endpoints (`/api/tenants/list`, `/api/users/list`).
+    * Added Redis cache key strategy with TTLs.
+    * Added integration tests covering role scoping, caching, negative RBAC scenarios.
+  * **Phase 1, Step 8:** Role-Based Authorization - **DONE**
+    * RBAC enforcement across user/tenant operations and API key lifecycle.
+  * **Phase 1, Step 7:** API Key Authentication & Management - **DONE**
+  * **Phase 1, Step 6:** Projection Worker DB & Notifications - **DONE**
+  * **Phase 1, Step 5:** Real Infrastructure Adapters - **DONE**
+  * **Phase 1, Step 4:** Projection Worker Skeleton & Migrations - **DONE**
+  * **Phase 1, Step 3:** Command Handlers & API Gateway Setup - **DONE**
+  * **Phase 1, Step 2:** Domain Model & Protobuf - **DONE**
+  * **Phase 1, Step 1:** Core ES/CQRS In-Memory Lib - **DONE**
+  * **Phase 0:** Project scaffolding & foundational setup - **DONE**
+* **Work In Progress:** None (Step 10 closed; planning Step 11).
+* **Upcoming Work (Phase 1, Step 11 - Planned):**
+  * Frontend WebSocket client, subscription manager, UI state reconciliation.
+  * Client-side mapping of channels -> resource invalidation / refresh strategy.
+  * Introduce event envelope upgrade (or schedule Step 12 if scope risk).
+  * Add Redis→WS integration test (spawn Redis container, publish synthetic messages, assert client receives event).
+  * Add observability placeholders (connection count gauge, subscription metrics).
+* **Known Issues / Gaps:**
+  * No integration test yet verifying Redis Pub/Sub broadcast to WS client.
+  * Event frames lack explicit `event_type` (payload-only inference).
+  * No backpressure or send queue bounding; potential risk under bursty events.
+  * WS unit tests are co-located; might extract to dedicated test module for clarity.
+* **Decision Log (Incremental for Step 10):**
+  * Per-connection Redis Pub/Sub accepted for MVP; defer multiplex optimization.
+  * JSON frames only; no compression or binary frames initially.
+  * Rate limit chosen as 10/10s; adjustable if needed after frontend consumption patterns observed.
+* **Metrics to Add (Future):**
+  * Connected clients, per-channel subscription counts, dropped messages, rate-limit hits.
+* **Confidence:** High for baseline real-time path stability; moderate for production scalability (pending multiplex & metrics).
+* **Next Action:** Draft Step 11 plan document (`doc/plans/phase-1-step-11-plan.md`) focusing on frontend reactive layer and event envelope evolution.

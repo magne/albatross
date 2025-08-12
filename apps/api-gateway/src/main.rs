@@ -62,12 +62,33 @@ async fn main() {
     let cache: Arc<dyn Cache> = Arc::new(InMemoryCache::default());
 
     // Create the application state using the struct from lib.rs
+    // Optional Redis client for WebSocket real-time (Step 10)
+    let redis_client = match std::env::var("REDIS_URL") {
+        Ok(url) => {
+            match redis::Client::open(url.clone()) {
+                Ok(c) => {
+                    info!("Connected to Redis for WebSocket real-time");
+                    Some(c)
+                }
+                Err(e) => {
+                    warn!("Failed to create Redis client (WS real-time disabled): {}", e);
+                    None
+                }
+            }
+        }
+        Err(_) => {
+            warn!("REDIS_URL not set (WS real-time disabled)");
+            None
+        }
+    };
+
     let app_state = AppState {
         user_repo: user_repo.clone(),
         tenant_repo: tenant_repo.clone(),
         event_bus: event_bus.clone(),
         cache: cache.clone(),
         pg_pool,
+        redis_client,
     };
 
     // Create the application router using the function from lib.rs

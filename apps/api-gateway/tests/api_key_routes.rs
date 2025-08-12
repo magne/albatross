@@ -29,6 +29,7 @@ fn setup_test_app() -> TestServer {
         event_bus: event_bus.clone(),
         cache: cache.clone(),
         pg_pool: None,
+        redis_client: None,
     };
 
     let app: Router = create_app(app_state);

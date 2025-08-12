@@ -96,6 +96,7 @@ async fn build_server() -> (TestServer, Arc<dyn Cache>, PgPool) {
         event_bus,
         cache: cache.clone(),
         pg_pool: Some(pool.clone()),
+        redis_client: None,
     };
 
     let app = create_app(state);
