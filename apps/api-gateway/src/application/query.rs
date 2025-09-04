@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State, Extension},
+    extract::{Query, State, Extension, Path},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -10,12 +10,13 @@ use tracing::{debug, warn};
 
 use crate::AppState;
 use super::middleware::AuthenticatedUser;
-use super::authz::{parse_role, AuthRole};
+use super::authz::{parse_role, AuthRole, authorize, Requirement};
 
 const TTL_LIST_SECONDS: u64 = 45;
 const TTL_SELF_SECONDS: u64 = 60;
 const MAX_LIMIT: u32 = 200;
 const DEFAULT_LIMIT: u32 = 50;
+const TTL_API_KEYS_SECONDS: u64 = 30;
 
 #[derive(Debug, Deserialize)]
 pub struct Pagination {
@@ -42,6 +43,15 @@ struct UserRow {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(sqlx::FromRow, Serialize)]
+struct ApiKeyRow {
+    key_id: String,
+    key_name: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 fn normalize_pagination(p: &Pagination) -> (u32, u32) {
     let mut limit = p.limit.unwrap_or(DEFAULT_LIMIT);
     if limit == 0 {
@@ -52,6 +62,79 @@ fn normalize_pagination(p: &Pagination) -> (u32, u32) {
     }
     let offset = p.offset.unwrap_or(0);
     (limit, offset)
+}
+
+// GET /api/users/{user_id}/apikeys (list)
+pub async fn handle_list_user_api_keys(
+    State(app_state): State<AppState>,
+    Extension(ctx): Extension<AuthenticatedUser>,
+    Path(user_id): Path<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let pool = ensure_pool(&app_state).await?;
+    // Authorize (self or tenant admin for same tenant)
+    // Load target user's tenant_id for cross-user access decisions
+    // Runtime (non-macro) query to avoid SQLX_OFFLINE preparation requirement
+    let target_tenant_id = sqlx::query_scalar::<_, String>(
+        "SELECT tenant_id::text FROM users WHERE user_id = $1"
+    )
+        .bind(&user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if target_tenant_id.is_none() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let role = parse_role(&ctx.role).ok_or(StatusCode::FORBIDDEN)?;
+    authorize(
+        &ctx.user_id,
+        &ctx.tenant_id,
+        role,
+        Requirement::SelfOrTenantAdmin {
+            target_user_id: user_id.clone(),
+            target_tenant_id: target_tenant_id.clone(),
+        },
+    )
+    .map_err(|_| StatusCode::FORBIDDEN)?;
+
+    let cache_key = format!("q:v1:user_api_keys:{user_id}");
+    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await {
+        if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+            debug!("cache hit user_api_keys key={}", cache_key);
+            return Ok((StatusCode::OK, Json(resp)));
+        }
+    }
+
+    let rows: Vec<ApiKeyRow> = sqlx::query_as::<_, ApiKeyRow>(
+        r#"
+        SELECT key_id, key_name, created_at, revoked_at, last_used_at
+        FROM user_api_keys
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(&user_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        warn!("DB error listing user api keys: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let response = serde_json::json!({
+        "data": rows,
+        "user_id": user_id,
+        "pagination": {
+            "returned": rows.len()
+        }
+    });
+
+    if let Ok(bytes) = serde_json::to_vec(&response) {
+        let _ = app_state.cache.set(&cache_key, &bytes, Some(TTL_API_KEYS_SECONDS));
+    }
+
+    Ok((StatusCode::OK, Json(response)))
 }
 
 fn cache_key_tenants(role: AuthRole, tenant_id: Option<&str>) -> String {
@@ -84,7 +167,10 @@ fn cache_key_users(role: AuthRole, tenant_id: Option<&str>, user_id: &str, limit
 }
 
 async fn ensure_pool(app: &AppState) -> Result<&PgPool, StatusCode> {
-    app.pg_pool.as_ref().ok_or(StatusCode::INTERNAL_SERVER_ERROR)
+    app.pg_pool.as_ref().ok_or_else(|| {
+        warn!("PostgreSQL pool not available - database queries disabled");
+        StatusCode::SERVICE_UNAVAILABLE
+    })
 }
 
 // GET /api/tenants

@@ -6,21 +6,28 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "pnpm biome:check",
-    "preview": "vite preview"
+    "lint": "biome check .",
+    "preview": "vite preview",
+    "test": "vitest"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.51.21",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router": "^7.8.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.1.4",
     "@tailwindcss/vite": "^4.1.11",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react-swc": "^4.0.0",
+    "jsdom": "^25.0.1",
     "tailwindcss": "^4.1.11",
     "typescript": "~5.9.2",
-    "vite": "^7.1.1"
+    "vite": "^7.1.1",
+    "vitest": "^2.1.8"
   }
 }

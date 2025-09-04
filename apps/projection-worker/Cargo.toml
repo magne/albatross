@@ -13,7 +13,7 @@ dotenvy.workspace = true
 futures-util.workspace = true # For StreamExt
 lapin.workspace = true # For direct RabbitMQ interaction
 prost.workspace = true
-refinery = { workspace = true, features = ["tokio-postgres"] }
+
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sqlx = { workspace = true, features = [
@@ -21,14 +21,11 @@ sqlx = { workspace = true, features = [
     "postgres",
     "uuid",
     "chrono",
+    "migrate",
 ] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-# Add tokio-postgres back specifically for refinery runner
-tokio-postgres = { workspace = true, features = [
-    "with-chrono-0_4",
-    "with-uuid-1",
-] }
+
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4", "serde"] } # For IDs

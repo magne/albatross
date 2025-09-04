@@ -31,6 +31,7 @@ rand = "0.9.1" # Reverted to simple version
 argon2 = "0.5.3" # Keep argon2 specific for now, or move to workspace if needed elsewhere
 redis.workspace = true
 futures-util.workspace = true
+tower-http = { version = "0.6", features = ["cors"] }
 
 [dev-dependencies]
 axum-test = "17.3.0"
@@ -38,3 +39,5 @@ testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true, features = ["postgres"] }
 tokio = { workspace = true, features = ["full"] }
 serde_json.workspace = true
+tokio-tungstenite = "0.24"
+futures-util.workspace = true

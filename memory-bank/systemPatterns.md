@@ -80,3 +80,5 @@
   * **Cache:** Frequently accessed read model data cached in Redis for performance. Also stores API key authentication data (`plain_key -> AuthenticatedUser`) and revocation lookup data (`keyid_{key_id} -> plain_key`).
   * **State:** Aggregate state is rebuilt from events when processing commands. Application state (sessions) potentially in Redis or JWTs.
   * **Multi-Tenancy:** Logical separation via `tenant_id` in event streams, event metadata, and all read model tables. Strict filtering applied at all data access points.
+* **Key Patterns Extended:**
+  * Real-time Delivery pattern: Redis Pub/Sub → API WS forwarder → Client reactive layer (implemented with event envelope and mapper).

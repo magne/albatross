@@ -19,63 +19,55 @@ use proto::{
 };
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::Row;
 use std::env;
 use std::sync::Arc;
 // use tokio::sync::broadcast::error::RecvError; // Not needed for lapin consumer stream
 // use tokio_postgres::NoTls; // No longer needed directly here
 use tracing::{Level, error, info, warn};
+use chrono::Utc;
+use serde_json::json;
 use tracing_subscriber::FmtSubscriber;
 use uuid::Uuid; // Needed for parsing UUIDs in handlers
 
-// Embed migrations
-mod migrations {
-    refinery::embed_migrations!("./migrations");
-}
+// Migrations are handled by sqlx migrate
 
 // Define a generic error type for the main function
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 // --- Migration Runner ---
-// Runs migrations using a separate tokio_postgres client
+// Runs migrations using sqlx migrate
 // Returns BoxError for easier handling in main
 async fn run_migrations(db_url: &str) -> Result<(), BoxError> {
-    // Create a connection config
-    let config: tokio_postgres::Config = db_url.parse()?; // Let ? handle BoxError conversion
-
-    // Create the client and connection
-    let (mut client, connection) = config
-        .connect(tokio_postgres::NoTls) // Assuming NoTls for local dev; configure TLS appropriately for production
-        .await?; // Let ? handle BoxError conversion
-
-    // Spawn the connection task
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            error!("PostgreSQL connection error (migrations): {}", e);
-        }
-    });
+    // Create a connection pool
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(db_url)
+        .await?;
 
     // Run the migrations
     info!("Applying database migrations...");
-    let report = migrations::migrations::runner()
-        .run_async(&mut client)
-        .await?; // Let ? handle BoxError conversion
+    let migrator = sqlx::migrate::Migrator::new(std::path::Path::new("./migrations")).await?;
+    migrator.run(&pool).await?;
 
-    if !report.applied_migrations().is_empty() {
-        info!(
-            "Applied {} migrations: {:?}",
-            report.applied_migrations().len(),
-            report
-                .applied_migrations()
-                .iter()
-                .map(|m| m.name())
-                .collect::<Vec<_>>()
-        );
+    info!("Migrations applied successfully.");
+
+    // Verify tables exist after migrations
+    let tables = sqlx::query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('tenants', 'users', 'user_api_keys')")
+        .fetch_all(&pool)
+        .await?;
+
+    let existing_tables: Vec<String> = tables
+        .iter()
+        .map(|row| row.get::<String, &str>("tablename"))
+        .collect();
+
+    if existing_tables.len() < 3 {
+        warn!("Migration completed but some tables are missing. Expected: tenants, users, user_api_keys. Found: {:?}", existing_tables);
+        // Don't fail here - let the application handle missing tables gracefully
     } else {
-        info!("No new migrations to apply.");
+        info!("Migration verification successful - all required tables exist: {:?}", existing_tables);
     }
-
-    // Close the client (optional, happens on drop)
-    // client.close().await?;
 
     Ok(()) // Return Ok(()) on success
 }
@@ -431,8 +423,18 @@ async fn handle_tenant_created(
     // Publish notification to Redis Pub/Sub
     let notification_topic = format!("tenant:{}:updates", event.tenant_id);
     // Using JSON for notification payload for now
-    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
-        CoreError::Serialization(format!("Failed to serialize TenantCreated: {}", e))
+    let envelope = json!({
+        "event_type": "TenantCreated",
+        "ts": Utc::now().to_rfc3339(),
+        "data": &event,
+        "meta": {
+            "tenant_id": event.tenant_id,
+            "aggregate_id": event.tenant_id,
+            "version": serde_json::Value::Null
+        }
+    });
+    let notification_payload = serde_json::to_vec(&envelope).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize TenantCreated envelope: {}", e))
     })?;
     publisher
         .publish(&notification_topic, "TenantCreated", &notification_payload)
@@ -496,8 +498,18 @@ async fn handle_user_registered(
     // Publish notification to Redis Pub/Sub
     let notification_topic = format!("user:{}:updates", event.user_id);
     // Using JSON for notification payload for now
-    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
-        CoreError::Serialization(format!("Failed to serialize UserRegistered: {}", e))
+    let envelope = json!({
+        "event_type": "UserRegistered",
+        "ts": Utc::now().to_rfc3339(),
+        "data": &event,
+        "meta": {
+            "tenant_id": event.tenant_id.clone(),
+            "aggregate_id": event.user_id,
+            "version": serde_json::Value::Null
+        }
+    });
+    let notification_payload = serde_json::to_vec(&envelope).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize UserRegistered envelope: {}", e))
     })?;
     publisher
         .publish(&notification_topic, "UserRegistered", &notification_payload)
@@ -538,7 +550,7 @@ async fn handle_api_key_generated(
     // Fetch as Option<String>, then parse to Option<Uuid>
     let tenant_uuid: Option<Uuid> = tenant_id_row
         .and_then(|row| row.tenant_id) // Get Option<String>
-        .map(|id_str| Uuid::parse_str(&id_str)) // Map String to Result<Uuid, _>
+        .map(|id_str| Uuid::parse_str(id_str.as_str())) // Map String to Result<Uuid, _>
         .transpose() // Convert Option<Result<Uuid, _>> to Result<Option<Uuid>, _>
         .map_err(|e| {
             CoreError::Deserialization(format!("Invalid tenant_id UUID fetched from DB: {}", e))
@@ -564,8 +576,18 @@ async fn handle_api_key_generated(
 
     // Publish notification
     let notification_topic = format!("user:{}:apikeys", event.user_id);
-    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
-        CoreError::Serialization(format!("Failed to serialize ApiKeyGenerated: {}", e))
+    let envelope = json!({
+        "event_type": "ApiKeyGenerated",
+        "ts": Utc::now().to_rfc3339(),
+        "data": &event,
+        "meta": {
+            "tenant_id": tenant_uuid.map(|u| u.to_string()),
+            "aggregate_id": event.user_id,
+            "version": serde_json::Value::Null
+        }
+    });
+    let notification_payload = serde_json::to_vec(&envelope).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize ApiKeyGenerated envelope: {}", e))
     })?;
     publisher
         .publish(
@@ -621,8 +643,18 @@ async fn handle_api_key_revoked(
 
     // Publish notification
     let notification_topic = format!("user:{}:apikeys", event.user_id);
-    let notification_payload = serde_json::to_vec(&event).map_err(|e| {
-        CoreError::Serialization(format!("Failed to serialize ApiKeyRevoked: {}", e))
+    let envelope = json!({
+        "event_type": "ApiKeyRevoked",
+        "ts": Utc::now().to_rfc3339(),
+        "data": &event,
+        "meta": {
+            "tenant_id": serde_json::Value::Null, // Not readily available; could be enriched later
+            "aggregate_id": event.user_id,
+            "version": serde_json::Value::Null
+        }
+    });
+    let notification_payload = serde_json::to_vec(&envelope).map_err(|e| {
+        CoreError::Serialization(format!("Failed to serialize ApiKeyRevoked envelope: {}", e))
     })?;
     publisher
         .publish(&notification_topic, "ApiKeyRevoked", &notification_payload)

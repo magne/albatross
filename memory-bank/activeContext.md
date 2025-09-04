@@ -1,7 +1,9 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 10 (WebSocket Real-Time Delivery) completed. Backend real-time infrastructure in place. Preparing for Step 11 (Frontend reactive integration & cache invalidation leveraging real-time events) and incremental hardening (integration tests for WS + enriching event envelopes).
-* **Recent Changes (Step 10 Completion):**
+* **Current Focus:** Phase 1, Step 11 COMPLETED (Frontend reactive integration implemented with React Query, real-time WebSocket invalidation, UI components for tenant/user/API key management, and bootstrap flow). Event envelope enrichment in projection worker completed. Missing items from plan implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. Next: Phase 1, Step 12 (PIREP submission flow) or Phase 1.5 (infrastructure deployment).
+* **Recent Changes (Step 10 Completion & Step 11 Start):**
+  * (Step 11) Implemented event envelope publishing in projection worker: Redis notifications now JSON envelope `{event_type, ts, data, meta{tenant_id, aggregate_id, version:null}}`.
+  * (Step 11) Step 11 plan approved & updated to incorporate React Router v7 data APIs + React Query seeding & invalidation strategy; alternative `react-use-websocket` path documented.
   * Added WebSocket endpoint `/api/ws` (Axum) with authentication via API key (Bearer header or `?api_key=` query).
   * Implemented connection lifecycle: baseline auto-subscriptions (user updates, user apikeys, tenant updates), dynamic subscribe/unsubscribe, ping/pong, heartbeat (30s), idle timeout (90s), per-connection rate limiting (10 control messages / 10s).
   * Added Redis Pub/Sub forward loop (baseline subscriptions) – forwards events as `{"type":"event","channel":...,"payload":...}` frames.
@@ -34,12 +36,12 @@
   5. Security hardening: PlatformAdmin extended subscription policy (optional future).
 * **Active Decisions:**
   * Continue using per-connection Redis Pub/Sub (optimize later).
-  * Defer event envelope enrichment to post-integration (keeps Step 10 scope bounded).
+  * Event envelope enrichment NOW IMPLEMENTED (projection worker publishes structured envelopes); frontend will rely on `event_type` for targeted invalidation.
   * Keep WebSocket JSON-only (binary & compression deferred).
 * **Risks / Mitigations:**
   * Scaling Redis connections → future multiplex design.
-  * Missing `event_type` → short-term client heuristic by channel → mitigate by envelope work soon.
-  * Lack of WS integration tests → scheduled early in next step to prevent regressions.
+  * Envelope shape drift / missing fields → add lightweight integration test + versioned contract doc.
+  * Lack of WS integration tests → scheduled early in Step 11 to prevent regressions.
 * **Backlog / Deferred (from Step 10 Plan):**
   * Shared multiplexer for channels.
   * Envelope with `event_type`.

@@ -1,6 +1,6 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 10 (WebSocket Real-Time Delivery) COMPLETED. All existing tests (unit + integration) pass after adapting for new `redis_client` in `AppState`. Preparing to start Step 11 (Frontend reactive integration & real-time driven cache invalidation). 
+* **Current Status:** Phase 1, Step 11 (Frontend reactive integration & real-time driven cache invalidation) COMPLETED. Frontend implemented with React Query, WebSocket client, UI components for tenant/user/API key management, and bootstrap flow. Missing items implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. All existing tests pass. Preparing for Phase 1, Step 12 (PIREP submission flow).
 * **Completed Features/Milestones:**
   * **Phase 1, Step 10:** WebSocket Real-Time Delivery (Backend - `apps/api-gateway`)
     * Added `/api/ws` endpoint with API key authentication (Bearer / optional query).

@@ -5,7 +5,6 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use axum::extract::ws::{WebSocketUpgrade, WebSocket, Message, CloseFrame};
-use redis::aio::PubSub;
 use futures_util::{StreamExt, SinkExt};
 use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::interval};
@@ -146,7 +145,6 @@ async fn websocket_connection(
 
     // Split socket and wrap sender in Arc<Mutex<..>> so we can use in multiple tasks
     let (sender_raw, mut receiver) = socket.split();
-    use futures_util::stream::SplitSink;
     let sender_arc = Arc::new(Mutex::new(sender_raw));
 
     let hb_last_activity = last_activity.clone();
@@ -375,6 +373,7 @@ mod tests {
     use super::*;
     use crate::application::middleware::AuthenticatedUser;
 
+    #[allow(dead_code)]
     fn ctx(user_id: &str, tenant_id: Option<&str>) -> AuthenticatedUser {
         AuthenticatedUser {
             user_id: user_id.to_string(),
@@ -383,6 +382,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     #[test]
     fn validate_own_user_channels() {
         let c = ctx("u1", Some("t1"));
@@ -391,6 +391,7 @@ mod tests {
         assert!(!validate_channel("user:u2:updates", &c));
     }
 
+    #[allow(dead_code)]
     #[test]
     fn validate_tenant_channel() {
         let c = ctx("u1", Some("t1"));
@@ -398,6 +399,7 @@ mod tests {
         assert!(!validate_channel("tenant:t2:updates", &c));
     }
 
+    #[allow(dead_code)]
     #[test]
     fn validate_pilot_cannot_other_user() {
         let mut c = ctx("u1", Some("t1"));
@@ -406,6 +408,7 @@ mod tests {
         assert!(!validate_channel("user:u2:updates", &c));
     }
 
+    #[allow(dead_code)]
     #[test]
     fn invalid_patterns_rejected() {
         let c = ctx("u1", Some("t1"));
@@ -415,6 +418,7 @@ mod tests {
         assert!(!validate_channel("tenant:t1:other", &c));
     }
 
+    #[allow(dead_code)]
     #[tokio::test]
     async fn rate_limiter_window() {
         let mut rl = RateLimiter::new(3, Duration::from_millis(50));

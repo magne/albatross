@@ -139,10 +139,13 @@ impl CommandHandler<RevokeApiKey> for RevokeApiKeyHandler {
             .await?;
 
         // 5. Publish events (using the serialized data)
-        let topic = "user_events";
         for (event_type, payload) in &events_to_save {
+            let topic = match event_type.as_str() {
+                "ApiKeyRevoked" => format!("user.{}", command.user_id),
+                _ => "user_events".to_string(),
+            };
             self.event_publisher
-                .publish(topic, event_type, payload)
+                .publish(&topic, event_type, payload)
                 .await?;
         }
 

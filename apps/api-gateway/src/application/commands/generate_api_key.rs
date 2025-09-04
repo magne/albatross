@@ -187,11 +187,14 @@ impl GenerateApiKeyHandler {
             .await?;
 
         // 6. Publish events (using the serialized data)
-        let topic = "user_events";
         for (event_type, payload) in &events_to_save {
+            let topic = match event_type.as_str() {
+                "ApiKeyGenerated" => format!("user.{}", input.user_id),
+                _ => "user_events".to_string(),
+            };
             // Iterate over serialized data
             self.event_publisher
-                .publish(topic, event_type, payload) // Publish raw bytes
+                .publish(&topic, event_type, payload) // Publish raw bytes
                 .await?;
         }
 

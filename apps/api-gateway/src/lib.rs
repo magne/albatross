@@ -6,6 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
+use tower_http::cors::{CorsLayer, Any};
 use core_lib::{
     Cache,
     CommandHandler, // Keep CommandHandler if used by other handlers moved here
@@ -27,6 +28,7 @@ pub mod application; // Make application module public
 use application::ws::ws_handler;
 use application::{
     commands::{
+        change_password::ChangePasswordHandler,
         create_tenant::handle_create_tenant_request, // Keep if needed by create_app
         generate_api_key::{GenerateApiKeyHandler, GenerateApiKeyInput},
         register_user::handle_register_user_request, // Keep if needed by create_app
@@ -34,7 +36,7 @@ use application::{
     },
     middleware::{AuthenticatedUser, api_key_auth},
     authz::{authorize, parse_role, Requirement},
-    query::{handle_list_tenants, handle_list_users},
+    query::{handle_list_tenants, handle_list_users, handle_list_user_api_keys},
 };
 use cqrs_es::Aggregate;
 use prost::Message;
@@ -113,6 +115,20 @@ pub fn create_app(app_state: AppState) -> Router {
                 .route_layer(middleware::from_fn_with_state(app_state.clone(), api_key_auth)),
         )
         .route(
+            "/users/{user_id}/apikeys/list",
+            get(handle_list_user_api_keys).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
+        .route(
+            "/users/{user_id}/change-password",
+            post(handle_change_password_request).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
+        .route(
             "/protected",
             get(protected_route).route_layer(middleware::from_fn_with_state(
                 app_state.clone(),
@@ -120,12 +136,18 @@ pub fn create_app(app_state: AppState) -> Router {
             )),
         );
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         .nest("/api", api_routes)
         .route("/api/ws", get(ws_handler))
         .route("/assets/{*path}", get(static_asset)) // Make handler pub
         .route("/", get(serve_index)) // Make handler pub
         .fallback(get(serve_index)) // Use same handler
+        .layer(cors)
         .with_state(app_state)
 }
 
@@ -323,6 +345,39 @@ pub async fn handle_revoke_api_key_request(
         Ok(_) => Ok(StatusCode::NO_CONTENT),
         Err(e) => Err(map_core_error(e)), // Make map_core_error pub
     }
+}
+
+pub async fn handle_change_password_request(
+    State(app_state): State<AppState>,
+    Extension(ctx): Extension<AuthenticatedUser>,
+    Path(user_id): Path<String>,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<StatusCode, StatusCode> {
+    // Only allow users to change their own password
+    if ctx.user_id != user_id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let handler = ChangePasswordHandler::new(
+        app_state.user_repo.clone(),
+        app_state.event_bus.clone(),
+    );
+
+    let command = proto::user::ChangePassword {
+        user_id: user_id.clone(),
+        new_password_hash: payload.new_password, // Note: In production, hash this on client side
+    };
+
+    match handler.handle(command).await {
+        Ok(_) => Ok(StatusCode::NO_CONTENT),
+        Err(e) => Err(map_core_error(e)),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ChangePasswordRequest {
+    pub old_password: String,
+    pub new_password: String,
 }
 
 pub async fn protected_route(Extension(user): Extension<AuthenticatedUser>) -> impl IntoResponse {
