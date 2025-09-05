@@ -100,17 +100,14 @@ reset_database() {
 run_migrations() {
     log_info "Running database migrations..."
 
-    cd "$PROJECT_ROOT/apps/api-gateway"
     export DATABASE_URL="$DATABASE_URL"
 
-    if cargo run --bin api-gateway -- --migrate-only >/dev/null 2>&1; then
+    if sqlx migrate run --source "$PROJECT_ROOT/apps/api-gateway/migrations" >/dev/null 2>&1; then
         log_success "Migrations completed successfully"
     else
         log_error "Migration failed"
         return 1
     fi
-
-    cd "$PROJECT_ROOT"
 }
 
 # Function to update SQLx metadata
