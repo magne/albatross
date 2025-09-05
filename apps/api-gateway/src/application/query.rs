@@ -262,7 +262,7 @@ pub async fn handle_list_users(
         }
     }
 
-    let rows: Vec<UserRow> = match role {
+    let mut rows: Vec<UserRow> = match role {
         AuthRole::PlatformAdmin => {
             sqlx::query_as::<_, UserRow>(
                 r#"
@@ -320,6 +320,13 @@ pub async fn handle_list_users(
             })?
         }
     };
+
+    // Strip "ROLE_" prefix from role strings for frontend compatibility
+    for row in &mut rows {
+        if row.role.starts_with("ROLE_") {
+            row.role = row.role.strip_prefix("ROLE_").unwrap_or(&row.role).to_string();
+        }
+    }
 
     let response = serde_json::json!({
         "data": rows,

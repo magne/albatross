@@ -5,9 +5,9 @@ import { useTenants } from '../hooks/useTenants'
 import { useApiKey } from '../state/ApiKeyContext'
 
 const ROLES = [
-  { value: 0, label: 'PlatformAdmin' },
-  { value: 1, label: 'TenantAdmin' },
-  { value: 2, label: 'Pilot' }
+  { value: 1, label: 'ROLE_PLATFORM_ADMIN' },
+  { value: 2, label: 'ROLE_TENANT_ADMIN' },
+  { value: 3, label: 'ROLE_PILOT' }
 ]
 
 export function UserCreateForm() {
@@ -18,7 +18,7 @@ export function UserCreateForm() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [selectedRole, setSelectedRole] = useState(2) // Default to Pilot
+  const [selectedRole, setSelectedRole] = useState(3) // Default to Pilot
   const [selectedTenantId, setSelectedTenantId] = useState('')
 
   const createMutation = useMutation({
@@ -27,22 +27,22 @@ export function UserCreateForm() {
       setUsername('')
       setEmail('')
       setPassword('')
-      setSelectedRole(2)
+      setSelectedRole(3)
       setSelectedTenantId('')
       queryClient.invalidateQueries({ queryKey: ['users'] })
     }
   })
 
-  const isPlatformAdmin = role === 'PlatformAdmin'
-  const isTenantAdmin = role === 'TenantAdmin'
+  const isPlatformAdmin = role === 'ROLE_PLATFORM_ADMIN'
+  const isTenantAdmin = role === 'ROLE_TENANT_ADMIN'
 
   const availableRoles = ROLES.filter((r) => {
     if (isPlatformAdmin) return true
-    if (isTenantAdmin) return r.value !== 0 // Cannot create PlatformAdmin
+    if (isTenantAdmin) return r.value !== 1 // Cannot create PlatformAdmin
     return false
   })
 
-  const needsTenant = selectedRole !== 0 // PlatformAdmin doesn't need tenant
+  const needsTenant = selectedRole !== 1 // PlatformAdmin doesn't need tenant
 
   return (
     <div>
