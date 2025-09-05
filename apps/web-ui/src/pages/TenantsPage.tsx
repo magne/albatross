@@ -8,7 +8,7 @@ export function TenantsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Tenants</h1>
-      {role === 'PlatformAdmin' && (
+      {(role === 'PlatformAdmin' || role === 'ROLE_PLATFORM_ADMIN') && (
         <div className="mb-6">
           <TenantCreateForm />
         </div>

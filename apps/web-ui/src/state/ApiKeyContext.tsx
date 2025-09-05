@@ -22,15 +22,14 @@ const UserContextLoader = ({ children }: { children: ReactNode }) => {
     queryFn: async () => {
       if (!apiKey) return null
       const API_BASE = (import.meta.env.VITE_API_BASE || 'http://localhost:3000').replace(/\/$/, '')
-      const res = await fetch(`${API_BASE}/api/users/list?limit=1&offset=0`, {
+      const res = await fetch(`${API_BASE}/api/users/self`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`
         }
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      return data.data?.[0] || null
+      return await res.json()
     },
     enabled: !!apiKey,
     staleTime: 5 * 60 * 1000 // 5 minutes

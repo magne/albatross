@@ -36,7 +36,7 @@ use application::{
     },
     middleware::{AuthenticatedUser, api_key_auth},
     authz::{authorize, parse_role, Requirement},
-    query::{handle_list_tenants, handle_list_users, handle_list_user_api_keys},
+    query::{handle_list_tenants, handle_list_users, handle_list_user_api_keys, UserRow},
 };
 use cqrs_es::Aggregate;
 use prost::Message;
@@ -87,6 +87,13 @@ pub fn create_app(app_state: AppState) -> Router {
         .route(
             "/users/list",
             get(handle_list_users).route_layer(middleware::from_fn_with_state(
+                app_state.clone(),
+                api_key_auth,
+            )),
+        )
+        .route(
+            "/users/self",
+            get(handle_get_user_self).route_layer(middleware::from_fn_with_state(
                 app_state.clone(),
                 api_key_auth,
             )),
@@ -378,6 +385,33 @@ pub async fn handle_change_password_request(
 pub struct ChangePasswordRequest {
     pub old_password: String,
     pub new_password: String,
+}
+
+pub async fn handle_get_user_self(
+    State(app_state): State<AppState>,
+    Extension(ctx): Extension<AuthenticatedUser>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let pool = app_state.pg_pool.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+
+    let user_row = sqlx::query_as::<_, UserRow>(
+        r#"
+        SELECT user_id, tenant_id, username, email, role, created_at, updated_at
+        FROM users
+        WHERE user_id = $1
+        "#,
+    )
+    .bind(&ctx.user_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        error!("DB error getting user self: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match user_row {
+        Some(user) => Ok((StatusCode::OK, Json(user))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 pub async fn protected_route(Extension(user): Extension<AuthenticatedUser>) -> impl IntoResponse {

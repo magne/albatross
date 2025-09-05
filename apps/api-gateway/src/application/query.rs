@@ -33,7 +33,7 @@ struct TenantRow {
 }
 
 #[derive(sqlx::FromRow, Serialize)]
-struct UserRow {
+pub struct UserRow {
     user_id: String,
     tenant_id: Option<String>,
     username: String,
@@ -74,17 +74,18 @@ pub async fn handle_list_user_api_keys(
     // Authorize (self or tenant admin for same tenant)
     // Load target user's tenant_id for cross-user access decisions
     // Runtime (non-macro) query to avoid SQLX_OFFLINE preparation requirement
-    let target_tenant_id = sqlx::query_scalar::<_, String>(
-        "SELECT tenant_id::text FROM users WHERE user_id = $1"
+    let target_user_row = sqlx::query!(
+        "SELECT tenant_id::text, username FROM users WHERE user_id = $1",
+        user_id
     )
-        .bind(&user_id)
         .fetch_optional(pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    if target_tenant_id.is_none() {
-        return Err(StatusCode::NOT_FOUND);
-    }
+    let target_user_row = match target_user_row {
+        Some(row) => row,
+        None => return Err(StatusCode::NOT_FOUND),
+    };
 
     let role = parse_role(&ctx.role).ok_or(StatusCode::FORBIDDEN)?;
     authorize(
@@ -93,7 +94,7 @@ pub async fn handle_list_user_api_keys(
         role,
         Requirement::SelfOrTenantAdmin {
             target_user_id: user_id.clone(),
-            target_tenant_id: target_tenant_id.clone(),
+            target_tenant_id: target_user_row.tenant_id,
         },
     )
     .map_err(|_| StatusCode::FORBIDDEN)?;
