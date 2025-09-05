@@ -31,6 +31,7 @@ use application::{
         change_password::ChangePasswordHandler,
         create_tenant::handle_create_tenant_request, // Keep if needed by create_app
         generate_api_key::{GenerateApiKeyHandler, GenerateApiKeyInput},
+        handle_login_request,
         register_user::handle_register_user_request, // Keep if needed by create_app
         revoke_api_key::RevokeApiKeyHandler,
     },
@@ -81,6 +82,10 @@ pub struct AppState {
 pub fn create_app(app_state: AppState) -> Router {
     // Make pub
     let api_routes = Router::new()
+        // Bootstrap status check - no auth required
+        .route("/bootstrap/status", get(handle_bootstrap_status))
+        // Login - no auth required
+        .route("/auth/login", post(handle_login_request))
         // Registration (bootstrap allowed) - POST only
         .route("/users", post(handle_register_user_request))
         // Listing endpoints (auth required) placed on separate list paths to avoid protecting bootstrap registration route
@@ -412,6 +417,29 @@ pub async fn handle_get_user_self(
         Some(user) => Ok((StatusCode::OK, Json(user))),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+pub async fn handle_bootstrap_status(
+    State(app_state): State<AppState>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let pool = app_state.pg_pool.as_ref().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+
+    // Check if any users exist in the database
+    let user_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM users"
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        error!("DB error checking bootstrap status: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let needs_bootstrap = user_count.0 == 0;
+
+    Ok(Json(serde_json::json!({
+        "needs_bootstrap": needs_bootstrap
+    })))
 }
 
 pub async fn protected_route(Extension(user): Extension<AuthenticatedUser>) -> impl IntoResponse {

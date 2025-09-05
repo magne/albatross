@@ -100,12 +100,11 @@ pub async fn handle_list_user_api_keys(
     .map_err(|_| StatusCode::FORBIDDEN)?;
 
     let cache_key = format!("q:v1:user_api_keys:{user_id}");
-    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await {
-        if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await
+        && let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
             debug!("cache hit user_api_keys key={}", cache_key);
             return Ok((StatusCode::OK, Json(resp)));
         }
-    }
 
     let rows: Vec<ApiKeyRow> = sqlx::query_as::<_, ApiKeyRow>(
         r#"
@@ -132,7 +131,7 @@ pub async fn handle_list_user_api_keys(
     });
 
     if let Ok(bytes) = serde_json::to_vec(&response) {
-        let _ = app_state.cache.set(&cache_key, &bytes, Some(TTL_API_KEYS_SECONDS));
+        let _ = app_state.cache.set(&cache_key, &bytes, Some(TTL_API_KEYS_SECONDS)).await;
     }
 
     Ok((StatusCode::OK, Json(response)))
@@ -184,12 +183,11 @@ pub async fn handle_list_tenants(
 
     let cache_key = cache_key_tenants(role, ctx.tenant_id.as_deref());
 
-    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await {
-        if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await
+        && let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
             debug!("cache hit tenants key={}", cache_key);
             return Ok((StatusCode::OK, Json(resp)));
         }
-    }
 
     let rows: Vec<TenantRow> = match role {
         AuthRole::PlatformAdmin => {
@@ -235,9 +233,9 @@ pub async fn handle_list_tenants(
         }
     });
 
-    let ttl = if matches!(role, AuthRole::PlatformAdmin) { TTL_LIST_SECONDS } else { TTL_LIST_SECONDS };
+    let ttl = TTL_LIST_SECONDS;
     if let Ok(bytes) = serde_json::to_vec(&response) {
-        let _ = app_state.cache.set(&cache_key, &bytes, Some(ttl));
+        let _ = app_state.cache.set(&cache_key, &bytes, Some(ttl)).await;
     }
 
     Ok((StatusCode::OK, Json(response)))
@@ -255,12 +253,11 @@ pub async fn handle_list_users(
     let (limit, offset) = normalize_pagination(&p);
     let cache_key = cache_key_users(role, ctx.tenant_id.as_deref(), &ctx.user_id, limit, offset);
 
-    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await {
-        if let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+    if let Ok(Some(bytes)) = app_state.cache.get(&cache_key).await
+        && let Ok(resp) = serde_json::from_slice::<serde_json::Value>(&bytes) {
             debug!("cache hit users key={}", cache_key);
             return Ok((StatusCode::OK, Json(resp)));
         }
-    }
 
     let mut rows: Vec<UserRow> = match role {
         AuthRole::PlatformAdmin => {
@@ -339,7 +336,7 @@ pub async fn handle_list_users(
 
     let ttl = if matches!(role, AuthRole::Pilot) { TTL_SELF_SECONDS } else { TTL_LIST_SECONDS };
     if let Ok(bytes) = serde_json::to_vec(&response) {
-        let _ = app_state.cache.set(&cache_key, &bytes, Some(ttl));
+        let _ = app_state.cache.set(&cache_key, &bytes, Some(ttl)).await;
     }
 
     Ok((StatusCode::OK, Json(response)))

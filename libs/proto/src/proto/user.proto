@@ -63,7 +63,8 @@ message UserRegistered {
     string email = 3;
     Role role = 4;
     optional string tenant_id = 5;
-    string timestamp = 6; // ISO 8601 timestamp
+    string password_hash = 6; // Include password hash for read model projection
+    string timestamp = 7; // ISO 8601 timestamp
 }
 
 message PasswordChanged {

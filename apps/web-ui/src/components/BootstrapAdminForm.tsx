@@ -54,7 +54,7 @@ export function BootstrapAdminForm({ onApiKeySet }: BootstrapAdminFormProps) {
   })
 
   return (
-    <div className="max-w-md mx-auto p-4 border rounded">
+    <div className="max-w-md mx-auto p-4 border rounded" data-testid="bootstrap-form">
       <h2 className="text-xl font-semibold mb-4">Bootstrap First Admin</h2>
       <form
         onSubmit={(e) => {

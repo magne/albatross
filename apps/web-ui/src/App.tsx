@@ -1,5 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { BrowserRouter, Link, Outlet, Route, Routes } from 'react-router'
+import { useApi } from './api/client'
 import { BootstrapAdminForm } from './components/BootstrapAdminForm'
+import { LoginForm } from './components/LoginForm'
 import { AccountPage } from './pages/AccountPage'
 import { ApiKeysPage } from './pages/ApiKeysPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -48,11 +51,50 @@ function BootstrapWrapper({ onApiKeySet }: { onApiKeySet: (apiKey: string) => vo
   return <BootstrapAdminForm onApiKeySet={onApiKeySet} />
 }
 
+function LoginWrapper({ onApiKeySet }: { onApiKeySet: (apiKey: string) => void }) {
+  return <LoginForm onApiKeySet={onApiKeySet} />
+}
+
 function App() {
   const { apiKey, setApiKey } = useApiKey()
+  const { checkBootstrapStatus } = useApi()
 
+  const {
+    data: bootstrapStatus,
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['bootstrap-status'],
+    queryFn: checkBootstrapStatus,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    retry: false
+  })
+
+  // Show loading state while checking bootstrap status
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    )
+  }
+
+  // Show error state if bootstrap check fails
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-600">Failed to load application. Please refresh the page.</div>
+      </div>
+    )
+  }
+
+  // If no API key, show appropriate form based on bootstrap status
   if (!apiKey) {
-    return <BootstrapWrapper onApiKeySet={setApiKey} />
+    if (bootstrapStatus?.needs_bootstrap) {
+      return <BootstrapWrapper onApiKeySet={setApiKey} />
+    } else {
+      return <LoginWrapper onApiKeySet={setApiKey} />
+    }
   }
 
   return (

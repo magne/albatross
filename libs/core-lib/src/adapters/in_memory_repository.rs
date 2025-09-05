@@ -147,10 +147,11 @@ mod tests {
         // --- Setup initial event ---
         let event1_domain = UserEvent::Registered(UserRegistered {
             user_id: aggregate_id.clone(),
-            username: "append-user".to_string(),
-            email: "append@test.com".to_string(),
+            username: "test-inmem".to_string(),
+            email: "inmem@test.com".to_string(),
             role: proto::user::Role::Pilot as i32,
             tenant_id: None,
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         });
         let events_to_save1 = serialize_events(&[event1_domain]);
@@ -190,6 +191,7 @@ mod tests {
             email: "concurr@test.com".to_string(),
             role: proto::user::Role::Pilot as i32,
             tenant_id: None,
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         });
         let events_to_save1 = serialize_events(&[event1_domain]);

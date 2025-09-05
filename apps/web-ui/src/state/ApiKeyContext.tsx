@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from 'react'
 
 export interface ApiKeyContextValue {
@@ -50,6 +50,7 @@ const UserContextLoader = ({ children }: { children: ReactNode }) => {
 }
 
 export const ApiKeyProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient()
   const [apiKey, setApiKeyState] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [role, setRole] = useState<string | null>(null)
@@ -83,7 +84,9 @@ export const ApiKeyProvider = ({ children }: { children: ReactNode }) => {
     setUserId(null)
     setRole(null)
     setTenantId(null)
-  }, [setApiKey])
+    // Invalidate bootstrap status query so it refetches on next load
+    queryClient.invalidateQueries({ queryKey: ['bootstrap-status'] })
+  }, [setApiKey, queryClient])
 
   const value: ApiKeyContextValue = {
     apiKey,

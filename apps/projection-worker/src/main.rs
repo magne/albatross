@@ -449,8 +449,6 @@ async fn handle_user_registered(
     let role_enum = Role::try_from(event.role).unwrap_or(Role::Unspecified);
     let role_str = role_enum.as_str_name(); // Get Protobuf enum string name
 
-    // Note: Password hash is NOT in the event. Inserting placeholder.
-    // This read model might need adjustment later depending on how auth is handled.
     sqlx::query!(
         "INSERT INTO users (user_id, tenant_id, username, email, role, password_hash, created_at, updated_at)
          VALUES ($1::Uuid, $2::Uuid, $3, $4, $5, $6, NOW(), NOW())", // Add ::Uuid hints
@@ -459,7 +457,7 @@ async fn handle_user_registered(
         event.username,
         event.email,
         role_str,
-        "PLACEHOLDER_HASH" // Password hash is not available in the event
+        event.password_hash // Use password hash from the event
     )
     .execute(db_pool.as_ref()) // Use as_ref() to get &PgPool
     .await

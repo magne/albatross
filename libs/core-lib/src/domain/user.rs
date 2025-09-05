@@ -223,7 +223,7 @@ impl User {
             user_id: command.user_id,
             username: command.username,
             email: command.email,
-            // Password hash is NOT included in the event
+            password_hash: command.password_hash, // Include password hash for projection
             role: command.initial_role, // Keep as i32 in event
             tenant_id: command.tenant_id,
             timestamp,
@@ -397,6 +397,7 @@ mod tests {
             email: "exist@example.com".to_string(),
             role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
+            password_hash: "existing-hash".to_string(),
             timestamp: "0".to_string(),
         }));
         // Implicitly set password hash during apply if needed for state checks
@@ -465,6 +466,7 @@ mod tests {
             email: "test@example.com".to_string(),
             role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         }));
         aggregate.password_hash = "old_hash".to_string(); // Set initial hash state
@@ -499,6 +501,7 @@ mod tests {
             email: "test@example.com".to_string(),
             role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         }));
 
@@ -547,6 +550,7 @@ mod tests {
             email: "test@example.com".to_string(),
             role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         }));
         // Generate a key
@@ -598,6 +602,7 @@ mod tests {
             email: "test@example.com".to_string(),
             role: Role::Pilot as i32,
             tenant_id: Some("tenant-1".to_string()),
+            password_hash: "test-hash".to_string(),
             timestamp: "0".to_string(),
         }));
         // No key generated

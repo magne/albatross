@@ -113,11 +113,10 @@ pub async fn api_key_auth(
                                             };
                                             // Persist enriched entry back to cache with TTL
                                             let ttl_seconds = Some(3600 * 24 * 30);
-                                            if let Ok(bytes) = serde_json::to_vec(&enriched) {
-                                                if let Err(e) = app_state.cache.set(key, &bytes, ttl_seconds).await {
+                                            if let Ok(bytes) = serde_json::to_vec(&enriched)
+                                                && let Err(e) = app_state.cache.set(key, &bytes, ttl_seconds).await {
                                                     warn!("Failed to update enriched auth cache entry: {}", e);
                                                 }
-                                            }
                                             info!("Enriched legacy auth cache entry with role");
                                             req.extensions_mut().insert(enriched);
                                             Ok(next.run(req).await)

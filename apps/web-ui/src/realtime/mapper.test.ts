@@ -4,6 +4,7 @@ import { handleEventDispatch } from './mapper'
 
 describe('handleEventDispatch', () => {
   let queryClient: QueryClient
+  // biome-ignore lint/suspicious/noExplicitAny: Test spy for React Query method
   let invalidateQueriesSpy: any
 
   beforeEach(() => {

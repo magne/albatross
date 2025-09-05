@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest'
 
-// Mock fetch globally
-const mockFetch = vi.fn()
-;(globalThis as { fetch: typeof fetch }).fetch = mockFetch
+// Mock fetch globally with proper typing
+const mockFetch = vi.fn() as MockedFunction<typeof fetch>
+globalThis.fetch = mockFetch
 
 describe('useUserSelf hook implementation', () => {
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe('useUserSelf hook implementation', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ user_id: 'test' })
-    })
+    } as Response)
 
     // Test the fetch call that should be made
     await fetch(expectedUrl, { headers: expectedHeaders })
@@ -59,7 +59,7 @@ describe('useUserSelf hook implementation', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockUserData)
-    })
+    } as Response)
 
     const response = await fetch('http://localhost:3000/api/users/self', {
       headers: {
@@ -77,7 +77,7 @@ describe('useUserSelf hook implementation', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401
-    })
+    } as Response)
 
     const response = await fetch('http://localhost:3000/api/users/self', {
       headers: {

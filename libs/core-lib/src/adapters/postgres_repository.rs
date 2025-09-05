@@ -265,6 +265,7 @@ mod tests {
             email: "con@test.com".to_string(),
             role: proto::user::Role::Pilot as i32,
             tenant_id: None,
+            password_hash: "test-hash".to_string(),
             timestamp: "now".to_string(),
         });
         let event2_domain = UserEvent::PasswordChanged(PasswordChanged {

@@ -9,6 +9,8 @@ use prost::Message;
 use proto::user::{RegisterUser, Role as ProtoRole};
 use crate::application::authz::{parse_role, AuthRole};
 use crate::application::middleware::AuthenticatedUser;
+use argon2::{Argon2, PasswordHasher};
+use argon2::password_hash::{rand_core::OsRng, SaltString};
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -36,12 +38,12 @@ impl CommandHandler<RegisterUser> for RegisterUserHandler {
         // 1. Load Aggregate (Not needed for RegisterUser)
 
         // 2. Create the aggregate command enum variant
-        let password_hash = format!("hashed_{}", command.password_hash); // Replace with actual hashing
+        // Password is already hashed by the HTTP handler
         let aggregate_command = UserCommand::Register(RegisterUser {
             user_id: command.user_id.clone(),
             username: command.username,
             email: command.email,
-            password_hash,
+            password_hash: command.password_hash,
             initial_role: command.initial_role,
             tenant_id: command.tenant_id,
         });
@@ -190,7 +192,14 @@ pub async fn handle_register_user_request(
         }
     }
     let user_id = Uuid::new_v4().to_string();
-    let password_hash = format!("hashed_{}", payload.password_plaintext); // Replace with actual hashing
+
+    // Hash password with argon2
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = match argon2.hash_password(payload.password_plaintext.as_bytes(), &salt) {
+        Ok(hash) => hash.to_string(),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Failed to hash password"}))).into_response(),
+    };
 
     let command = RegisterUser {
         user_id: user_id.clone(),

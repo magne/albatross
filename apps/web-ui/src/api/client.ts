@@ -81,6 +81,10 @@ export interface CreateUserResponse {
   user_id: string
 }
 
+export interface BootstrapStatusResponse {
+  needs_bootstrap: boolean
+}
+
 export function useApi() {
   const { apiKey } = useApiKey()
 
@@ -134,6 +138,7 @@ export function useApi() {
         apiKey
       ),
     revokeApiKey: (userId: string, keyId: string) =>
-      request<void>(`/api/users/${userId}/apikeys/${keyId}`, { method: 'DELETE' }, apiKey)
+      request<void>(`/api/users/${userId}/apikeys/${keyId}`, { method: 'DELETE' }, apiKey),
+    checkBootstrapStatus: () => request<BootstrapStatusResponse>('/api/bootstrap/status')
   }
 }

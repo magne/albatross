@@ -214,11 +214,10 @@ async fn websocket_connection(
                                 "channel": channel,
                                 "payload": serde_json::from_str::<serde_json::Value>(&txt).unwrap_or(serde_json::json!({"raw": txt}))
                             });
-                            if let Ok(out) = serde_json::to_string(&frame) {
-                                if sender_clone.lock().await.send(Message::Text(out.into())).await.is_err() {
+                            if let Ok(out) = serde_json::to_string(&frame)
+                                && sender_clone.lock().await.send(Message::Text(out.into())).await.is_err() {
                                     break;
                                 }
-                            }
                         }
                     }
                     info!(%conn_id, "Redis forward loop ended");
@@ -274,11 +273,10 @@ async fn websocket_connection(
                             accepted: accepted.clone(),
                             rejected: rejected.clone(),
                         };
-                        if let Ok(json) = serde_json::to_string(&frame) {
-                            if sender_arc.lock().await.send(Message::Text(json.into())).await.is_err() {
+                        if let Ok(json) = serde_json::to_string(&frame)
+                            && sender_arc.lock().await.send(Message::Text(json.into())).await.is_err() {
                                 break;
                             }
-                        }
                     }
                     Ok(Inbound::Unsubscribe { channels }) => {
                         let mut removed = Vec::new();
@@ -304,11 +302,10 @@ async fn websocket_connection(
                     }
                     Ok(Inbound::Ping { id }) => {
                         let frame = PongFrame { r#type: "pong", id };
-                        if let Ok(json) = serde_json::to_string(&frame) {
-                            if sender_arc.lock().await.send(Message::Text(json.into())).await.is_err() {
+                        if let Ok(json) = serde_json::to_string(&frame)
+                            && sender_arc.lock().await.send(Message::Text(json.into())).await.is_err() {
                                 break;
                             }
-                        }
                     }
                     Ok(Inbound::Unknown) | Err(_) => {
                         let _ = send_error(&sender_arc, "invalid_message", "Unrecognized message").await;
@@ -352,11 +349,10 @@ async fn send_error(
     message: &str
 ) -> Result<(), ()> {
     let frame = ErrorFrame { r#type: "error", code, message: message.to_string() };
-    if let Ok(json) = serde_json::to_string(&frame) {
-        if sender.lock().await.send(Message::Text(json.into())).await.is_err() {
+    if let Ok(json) = serde_json::to_string(&frame)
+        && sender.lock().await.send(Message::Text(json.into())).await.is_err() {
             return Err(());
         }
-    }
     Ok(())
 }
 
