@@ -148,7 +148,7 @@ mod tests {
     use testcontainers::ContainerAsync;
     use testcontainers_modules::postgres::Postgres as PostgresImage;
 
-    // Helper to set up DB
+    // Helper to set up DB with migrations
     async fn setup_db() -> (PgPool, ContainerAsync<PostgresImage>) {
         // Use the default image provided by the module
         let node = PostgresImage::default()
@@ -166,21 +166,12 @@ mod tests {
             .await
             .expect("Failed to connect to testcontainer Postgres");
 
-        // Manually create the events table
-        sqlx::query(
-            "CREATE TABLE events (
-                id SERIAL PRIMARY KEY,
-                aggregate_id VARCHAR(36) NOT NULL,
-                sequence BIGINT NOT NULL,
-                event_type VARCHAR(255) NOT NULL,
-                payload BYTEA NOT NULL,
-                timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                UNIQUE (aggregate_id, sequence)
-            );",
-        )
-        .execute(&pool)
-        .await
-        .expect("Failed to create events table");
+        // Run migrations to create the events table (and other tables)
+        let migrator = sqlx::migrate::Migrator::new(std::path::Path::new("../../apps/api-gateway/migrations"))
+            .await
+            .expect("Failed to create migrator");
+        migrator.run(&pool).await.expect("Failed to run migrations");
+
         (pool, node)
     }
 
