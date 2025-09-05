@@ -159,15 +159,10 @@ async fn main() -> Result<(), BoxError> {
                             // Attempt to get event type from headers again
                             let event_type = delivery
                                 .properties
-                                .headers() // Returns Option<&FieldTable>
-                                .as_ref()
-                                .and_then(|headers| headers.inner().get("event_type")) // Look for "event_type" key
-                                .and_then(|header_value| match header_value {
-                                    lapin::types::AMQPValue::LongString(s) => Some(s.to_string()), // Expecting a string
-                                    _ => None,
-                                })
+                                .kind().clone() // Get message type from properties
+                                .map(|s| s.to_string())
                                 .unwrap_or_else(|| {
-                                    warn!("Received message without 'event_type' header");
+                                    warn!("Received message without message type");
                                     String::new()
                                 });
                             let payload = delivery.data.clone(); // Clone payload for handler
@@ -218,15 +213,10 @@ async fn main() -> Result<(), BoxError> {
                              // Attempt to get event type from headers again
                             let event_type = delivery
                                 .properties
-                                .headers() // Returns Option<&FieldTable>
-                                .as_ref()
-                                .and_then(|headers| headers.inner().get("event_type")) // Look for "event_type" key
-                                .and_then(|header_value| match header_value {
-                                    lapin::types::AMQPValue::LongString(s) => Some(s.to_string()), // Expecting a string
-                                    _ => None,
-                                })
+                                .kind().clone() // Get message type from properties
+                                .map(|s| s.to_string())
                                 .unwrap_or_else(|| {
-                                    warn!("Received message without 'event_type' header");
+                                    warn!("Received message without message type");
                                     String::new()
                                 });
                             let payload = delivery.data.clone();

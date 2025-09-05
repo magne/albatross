@@ -3,11 +3,12 @@ use api_gateway::{AppState, create_app};
 use core_lib::{
     Cache, EventPublisher, Repository,
     adapters::{
-        in_memory_cache::InMemoryCache, in_memory_event_bus::InMemoryEventBus,
+        in_memory_cache::InMemoryCache,
         postgres_repository::PostgresEventRepository,
+        rabbitmq_event_bus::RabbitMqEventBus,
     },
 };
-use std::{net::SocketAddr, sync::Arc};
+use std::{env, net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
 use tracing::{Level, info, warn, error};
 use sqlx::postgres::PgPoolOptions;
@@ -109,7 +110,18 @@ async fn main() {
 
     let user_repo: Arc<dyn Repository> = Arc::new(PostgresEventRepository::new(db_pool.clone()));
     let tenant_repo: Arc<dyn Repository> = Arc::new(PostgresEventRepository::new(db_pool.clone()));
-    let event_bus: Arc<dyn EventPublisher> = Arc::new(InMemoryEventBus::default());
+
+    // Configure RabbitMQ event bus (same as projection-worker)
+    let rabbitmq_url = env::var("RABBITMQ_URL").unwrap_or_else(|_| "amqp://guest:guest@localhost:5672".to_string());
+    let exchange_name = env::var("RABBITMQ_EXCHANGE_NAME").unwrap_or_else(|_| "albatross_exchange".to_string());
+
+    let event_bus: Arc<dyn EventPublisher> = Arc::new(
+        RabbitMqEventBus::new(&rabbitmq_url, &exchange_name)
+            .await
+            .expect("Failed to connect to RabbitMQ")
+    );
+    info!("Connected to RabbitMQ for event publishing");
+
     let cache: Arc<dyn Cache> = Arc::new(InMemoryCache::default());
 
     // Create the application state using the struct from lib.rs
