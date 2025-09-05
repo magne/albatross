@@ -35,42 +35,7 @@ use uuid::Uuid; // Needed for parsing UUIDs in handlers
 // Define a generic error type for the main function
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
-// --- Migration Runner ---
-// Runs migrations using sqlx migrate
-// Returns BoxError for easier handling in main
-async fn run_migrations(db_url: &str) -> Result<(), BoxError> {
-    // Create a connection pool
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect(db_url)
-        .await?;
-
-    // Run the migrations
-    info!("Applying database migrations...");
-    let migrator = sqlx::migrate::Migrator::new(std::path::Path::new("./migrations")).await?;
-    migrator.run(&pool).await?;
-
-    info!("Migrations applied successfully.");
-
-    // Verify tables exist after migrations
-    let tables = sqlx::query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('tenants', 'users', 'user_api_keys')")
-        .fetch_all(&pool)
-        .await?;
-
-    let existing_tables: Vec<String> = tables
-        .iter()
-        .map(|row| row.get::<String, &str>("tablename"))
-        .collect();
-
-    if existing_tables.len() < 3 {
-        warn!("Migration completed but some tables are missing. Expected: tenants, users, user_api_keys. Found: {:?}", existing_tables);
-        // Don't fail here - let the application handle missing tables gracefully
-    } else {
-        info!("Migration verification successful - all required tables exist: {:?}", existing_tables);
-    }
-
-    Ok(()) // Return Ok(()) on success
-}
+// Migrations are now handled by api-gateway (command side)
 
 #[tokio::main]
 async fn main() -> Result<(), BoxError> {
@@ -102,11 +67,28 @@ async fn main() -> Result<(), BoxError> {
     let tenant_routing_key = "tenant.*"; // Listen for all tenant events
     let user_routing_key = "user.*"; // Listen for all user events
 
-    // --- Database Setup & Migrations ---
-    // Run migrations using a separate client connection
-    if let Err(e) = run_migrations(&database_url).await {
-        error!("Database migration failed: {}", e);
-        return Err(e); // Exit if migrations fail
+    // --- Database Setup ---
+    // Migrations are now handled by api-gateway. Verify tables exist.
+    let temp_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&database_url)
+        .await?;
+
+    // Verify required tables exist (created by api-gateway migrations)
+    let tables = sqlx::query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('events', 'tenants', 'users', 'user_api_keys')")
+        .fetch_all(&temp_pool)
+        .await?;
+
+    let existing_tables: Vec<String> = tables
+        .iter()
+        .map(|row| row.get::<String, &str>("tablename"))
+        .collect();
+
+    if existing_tables.len() < 4 {
+        error!("Required tables missing. Expected: events, tenants, users, user_api_keys. Found: {:?}. Ensure api-gateway has started and created the database schema.", existing_tables);
+        return Err("Database schema not ready - start api-gateway first".into());
+    } else {
+        info!("Database schema verification successful - all required tables exist: {:?}", existing_tables);
     }
 
     // Create the main database connection pool for the application

@@ -38,3 +38,9 @@
 
 - Check project files before suggesting structural or dependency changes.
 - Use words like "elegant" and "simple" in prompts
+
+## Code Conventions
+
+### Markdown files
+
+- Markdown files should adhere to the [`markdownlint`](https://github.com/DavidAnson/markdownlint) rules.

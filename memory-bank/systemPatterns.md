@@ -75,10 +75,11 @@
   * **Real-time UI Update:** Notification (Redis PubSub) -> Backend API Instance -> Forward to relevant WebSocket/SSE Client -> Frontend UI Update.
   * **API Key Authentication:** API Request (with Bearer Token) -> Auth Middleware -> Lookup Plain Key in Cache -> On Hit: Deserialize User Context, Proceed -> On Miss/Error: Return 401.
 * **Data Management:**
-  * **Events:** Primary source of truth. Stored immutably in PostgreSQL (as binary `bytea` using Protobuf serialization) with stream ID (including `tenant_id`), version number. Append-only.
+  * **Events:** Primary source of truth. Stored immutably in PostgreSQL (as binary `bytea` using Protobuf serialization) with stream ID (including `tenant_id`), version number. Append-only. **Database schema owned by api-gateway (command side).**
   * **Read Models:** Denormalized projections optimized for specific queries. Stored in PostgreSQL relational tables. Updated asynchronously by projections. Includes `tenant_id` for filtering. Eventually consistent.
   * **Cache:** Frequently accessed read model data cached in Redis for performance. Also stores API key authentication data (`plain_key -> AuthenticatedUser`) and revocation lookup data (`keyid_{key_id} -> plain_key`).
   * **State:** Aggregate state is rebuilt from events when processing commands. Application state (sessions) potentially in Redis or JWTs.
   * **Multi-Tenancy:** Logical separation via `tenant_id` in event streams, event metadata, and all read model tables. Strict filtering applied at all data access points.
+  * **Database Migrations:** Handled by api-gateway (command side) to ensure events table exists before projection-worker (query side) attempts to read events.
 * **Key Patterns Extended:**
   * Real-time Delivery pattern: Redis Pub/Sub → API WS forwarder → Client reactive layer (implemented with event envelope and mapper).

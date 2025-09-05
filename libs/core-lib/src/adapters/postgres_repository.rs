@@ -30,7 +30,7 @@ impl Repository for PostgresEventRepository {
     // Implement non-generic trait
     /// Load events for a specific aggregate instance.
     async fn load(&self, aggregate_id: &str) -> Result<Vec<SerializedEvent>, CoreError> {
-        let table_name = "events"; // Placeholder
+        let table_name = "events";
         let query = format!(
             "SELECT sequence, event_type, payload FROM {} WHERE aggregate_id = $1 ORDER BY sequence ASC",
             table_name
@@ -70,7 +70,7 @@ impl Repository for PostgresEventRepository {
             return Ok(());
         }
 
-        let table_name = "events"; // Placeholder
+        let table_name = "events";
         let mut tx = self
             .pool
             .begin()

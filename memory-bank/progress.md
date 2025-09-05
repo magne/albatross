@@ -1,7 +1,15 @@
 # Progress
 
-* **Current Status:** Phase 1, Step 11 (Frontend reactive integration & real-time driven cache invalidation) COMPLETED. Frontend implemented with React Query, WebSocket client, UI components for tenant/user/API key management, and bootstrap flow. Missing items implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. All existing tests pass. Preparing for Phase 1, Step 12 (PIREP submission flow).
+* **Current Status:** FIXED CRITICAL ARCHITECTURAL ISSUE - Missing Events Table. Phase 1, Step 11 (Frontend reactive integration & real-time driven cache invalidation) COMPLETED. Frontend implemented with React Query, WebSocket client, UI components for tenant/user/API key management, and bootstrap flow. Missing items implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. All existing tests pass. Preparing for Phase 1, Step 12 (PIREP submission flow).
 * **Completed Features/Milestones:**
+  * **CRITICAL ARCHITECTURAL FIX:** Events Table Migration & CQRS/ES Schema Ownership
+    * FIXED missing events table that was breaking CQRS/ES system.
+    * MOVED all database migrations from projection-worker to api-gateway (command side).
+    * CREATED events table migration (03__create_events_table.sql) with proper schema, indexes, and multi-tenancy.
+    * UPDATED api-gateway to run migrations on startup (command side owns schema).
+    * UPDATED projection-worker to verify tables exist instead of running migrations.
+    * ESTABLISHED correct CQRS architecture: Command side creates events, Query side reads them.
+    * ADDED proper startup order validation and error handling.
   * **Phase 1, Step 10:** WebSocket Real-Time Delivery (Backend - `apps/api-gateway`)
     * Added `/api/ws` endpoint with API key authentication (Bearer / optional query).
     * Implemented baseline auto-subscriptions: `user:{id}:updates`, `user:{id}:apikeys`, `tenant:{tenant_id}:updates`.

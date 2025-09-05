@@ -9,13 +9,50 @@ use core_lib::{
 };
 use std::{net::SocketAddr, sync::Arc};
 use tokio::net::TcpListener;
-use tracing::{Level, info, warn};
+use tracing::{Level, info, warn, error};
 use sqlx::postgres::PgPoolOptions;
+use sqlx::Row;
 use dotenvy::dotenv;
 use tracing_subscriber::FmtSubscriber;
 
 // main.rs now only contains the binary entry point and setup specific to running the application.
 // All shared application logic (router creation, state, handlers) is in lib.rs.
+
+// --- Migration Runner ---
+// Runs migrations using sqlx migrate
+async fn run_migrations(db_url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Create a connection pool for migrations
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(db_url)
+        .await?;
+
+    // Run the migrations
+    info!("Applying database migrations...");
+    let migrator = sqlx::migrate::Migrator::new(std::path::Path::new("./migrations")).await?;
+    migrator.run(&pool).await?;
+
+    info!("Migrations applied successfully.");
+
+    // Verify tables exist after migrations
+    let tables = sqlx::query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('events', 'tenants', 'users', 'user_api_keys')")
+        .fetch_all(&pool)
+        .await?;
+
+    let existing_tables: Vec<String> = tables
+        .iter()
+        .map(|row| row.get::<String, &str>("tablename"))
+        .collect();
+
+    if existing_tables.len() < 4 {
+        warn!("Migration completed but some tables are missing. Expected: events, tenants, users, user_api_keys. Found: {:?}", existing_tables);
+        // Don't fail here - let the application handle missing tables gracefully
+    } else {
+        info!("Migration verification successful - all required tables exist: {:?}", existing_tables);
+    }
+
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() {
@@ -39,6 +76,13 @@ async fn main() {
                 .await {
                     Ok(pool) => {
                         info!("Connected to Postgres for read model queries");
+
+                        // Run migrations if database is available
+                        if let Err(e) = run_migrations(&url).await {
+                            error!("Database migration failed: {}", e);
+                            return; // Exit if migrations fail - database is in inconsistent state
+                        }
+
                         Some(pool)
                     }
                     Err(e) => {

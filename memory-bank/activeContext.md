@@ -1,6 +1,14 @@
 # Active Context
 
-* **Current Focus:** Phase 1, Step 11 COMPLETED (Frontend reactive integration implemented with React Query, real-time WebSocket invalidation, UI components for tenant/user/API key management, and bootstrap flow). Event envelope enrichment in projection worker completed. Missing items from plan implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. Next: Phase 1, Step 12 (PIREP submission flow) or Phase 1.5 (infrastructure deployment).
+* **Current Focus:** FIXED CRITICAL ARCHITECTURAL ISSUE - Missing Events Table. Phase 1, Step 11 COMPLETED (Frontend reactive integration implemented with React Query, real-time WebSocket invalidation, UI components for tenant/user/API key management, and bootstrap flow). Event envelope enrichment in projection worker completed. Missing items from plan implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. Next: Phase 1, Step 12 (PIREP submission flow) or Phase 1.5 (infrastructure deployment).
+* **Recent Changes (Architectural Fix - Events Table Migration):**
+  * FIXED CRITICAL ISSUE: Events table was missing from database schema, causing CQRS/ES system to fail.
+  * MOVED migrations from projection-worker to api-gateway (command side ownership).
+  * CREATED events table migration (03__create_events_table.sql) with proper schema, indexes, and multi-tenancy support.
+  * UPDATED api-gateway to run all migrations (events + read models) on startup.
+  * UPDATED projection-worker to verify tables exist instead of running migrations.
+  * FIXED architectural violation: Command side (api-gateway) now properly owns database schema.
+  * ADDED proper error handling and startup order validation.
 * **Recent Changes (Step 10 Completion & Step 11 Start):**
   * (Step 11) Implemented event envelope publishing in projection worker: Redis notifications now JSON envelope `{event_type, ts, data, meta{tenant_id, aggregate_id, version:null}}`.
   * (Step 11) Step 11 plan approved & updated to incorporate React Router v7 data APIs + React Query seeding & invalidation strategy; alternative `react-use-websocket` path documented.
