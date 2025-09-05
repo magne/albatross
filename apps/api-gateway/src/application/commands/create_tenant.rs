@@ -72,12 +72,11 @@ impl CommandHandler<CreateTenant> for CreateTenantHandler {
             .await?;
 
         // 4. Publish events (using serialized data)
-        // TODO: Define proper topic naming convention
-        let topic = "tenant_events";
         for (event_type, payload) in &events_to_save {
             // Iterate over serialized data
+            let topic = format!("tenant.{}", command.tenant_id);
             self.event_publisher
-                .publish(topic, event_type, payload) // Publish raw bytes
+                .publish(&topic, event_type, payload) // Publish raw bytes
                 .await?;
         }
 
