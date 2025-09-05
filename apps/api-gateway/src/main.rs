@@ -4,7 +4,7 @@ use core_lib::{
     Cache, EventPublisher, Repository,
     adapters::{
         in_memory_cache::InMemoryCache, in_memory_event_bus::InMemoryEventBus,
-        in_memory_repository::InMemoryEventRepository,
+        postgres_repository::PostgresEventRepository,
     },
 };
 use std::{net::SocketAddr, sync::Arc};
@@ -98,10 +98,17 @@ async fn main() {
     };
 
     // --- Dependency Injection Setup ---
-    // TODO: Replace with configuration loading and real adapters (Postgres, RabbitMQ, Redis)
-    // For now, using in-memory adapters like in tests.
-    let user_repo: Arc<dyn Repository> = Arc::new(InMemoryEventRepository::default());
-    let tenant_repo: Arc<dyn Repository> = Arc::new(InMemoryEventRepository::default());
+    // Using PostgreSQL repositories for persistence
+    let db_pool = match pg_pool {
+        Some(pool) => pool,
+        None => {
+            error!("DATABASE_URL not set - PostgreSQL required for event persistence");
+            return;
+        }
+    };
+
+    let user_repo: Arc<dyn Repository> = Arc::new(PostgresEventRepository::new(db_pool.clone()));
+    let tenant_repo: Arc<dyn Repository> = Arc::new(PostgresEventRepository::new(db_pool.clone()));
     let event_bus: Arc<dyn EventPublisher> = Arc::new(InMemoryEventBus::default());
     let cache: Arc<dyn Cache> = Arc::new(InMemoryCache::default());
 
@@ -131,7 +138,7 @@ async fn main() {
         tenant_repo: tenant_repo.clone(),
         event_bus: event_bus.clone(),
         cache: cache.clone(),
-        pg_pool,
+        pg_pool: Some(db_pool),
         redis_client,
     };
 
