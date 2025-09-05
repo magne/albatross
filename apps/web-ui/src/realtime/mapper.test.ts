@@ -1,10 +1,10 @@
 import { QueryClient } from '@tanstack/react-query'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleEventDispatch } from './mapper'
 
 describe('handleEventDispatch', () => {
   let queryClient: QueryClient
-  let invalidateQueriesSpy: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  let invalidateQueriesSpy: any
 
   beforeEach(() => {
     queryClient = new QueryClient()

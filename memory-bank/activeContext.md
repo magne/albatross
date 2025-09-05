@@ -1,6 +1,13 @@
 # Active Context
 
-* **Current Focus:** FIXED CRITICAL ARCHITECTURAL ISSUE - Missing Events Table. Phase 1, Step 11 COMPLETED (Frontend reactive integration implemented with React Query, real-time WebSocket invalidation, UI components for tenant/user/API key management, and bootstrap flow). Event envelope enrichment in projection worker completed. Missing items from plan implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. Next: Phase 1, Step 12 (PIREP submission flow) or Phase 1.5 (infrastructure deployment).
+* **Current Focus:** FIXED CRITICAL USER CONTEXT SWITCHING BUG. Phase 1, Step 11 COMPLETED (Frontend reactive integration implemented with React Query, real-time WebSocket invalidation, UI components for tenant/user/API key management, and bootstrap flow). Event envelope enrichment in projection worker completed. Missing items from plan implemented: Tenant/User creation forms, ChangePassword stub, Vitest tests for hooks/mapper, backend envelope integration test. Next: Phase 1, Step 12 (PIREP submission flow) or Phase 1.5 (infrastructure deployment).
+* **Recent Changes (User Context Switching Fix):**
+  * FIXED CRITICAL BUG: `useUserSelf` hook was incorrectly getting first user from users list instead of current authenticated user
+  * ROOT CAUSE: `useUserSelf` was calling `api.listUsers(1, 0).then((res) => res.data[0])` - getting first user in list ordering
+  * IMPACT: Creating new user "pa" caused dashboard to greet as "pa" instead of current user "magne"
+  * FIX: Updated `useUserSelf` to properly call `/api/users/self` endpoint with Authorization header
+  * RESULT: Dashboard now shows correct authenticated user, user creation doesn't cause context switching
+  * ADDED: Missing import for `useApiKey` in hooks file
 * **Recent Changes (Architectural Fix - Events Table Migration):**
   * FIXED CRITICAL ISSUE: Events table was missing from database schema, causing CQRS/ES system to fail.
   * MOVED migrations from projection-worker to api-gateway (command side ownership).
