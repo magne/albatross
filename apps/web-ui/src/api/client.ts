@@ -128,7 +128,7 @@ export function useApi() {
       request<GenerateKeyResponse>(`/api/users/${userId}/apikeys`, {
         method: 'POST',
         body: JSON.stringify({ key_name: keyName })
-      }),
+      }, apiKey),
     revokeApiKey: (userId: string, keyId: string) =>
       request<void>(`/api/users/${userId}/apikeys/${keyId}`, { method: 'DELETE' }, apiKey)
   }

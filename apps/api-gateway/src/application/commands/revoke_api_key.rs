@@ -151,6 +151,21 @@ impl CommandHandler<RevokeApiKey> for RevokeApiKeyHandler {
 
         // --- Cache Invalidation ---
         // After successfully saving/publishing the event, attempt to remove the key from cache.
+
+        // 1. Invalidate API key list cache for this user
+        let api_keys_cache_key = format!("q:v1:user_api_keys:{}", command.user_id);
+        match self.cache.delete(&api_keys_cache_key).await {
+            Ok(_) => tracing::info!(
+                "Invalidated API keys list cache for user: {}",
+                command.user_id
+            ),
+            Err(e) => tracing::warn!(
+                "Failed to invalidate API keys list cache for user {}: {}",
+                command.user_id, e
+            ),
+        }
+
+        // 2. Remove authentication cache entries
         let key_id_cache_key = format!("keyid_{}", command.key_id);
         let plain_key_result = self.cache.get(&key_id_cache_key).await;
 

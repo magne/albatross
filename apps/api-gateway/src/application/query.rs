@@ -111,7 +111,7 @@ pub async fn handle_list_user_api_keys(
         r#"
         SELECT key_id, key_name, created_at, revoked_at, last_used_at
         FROM user_api_keys
-        WHERE user_id = $1
+        WHERE user_id = $1 AND revoked_at IS NULL
         ORDER BY created_at DESC
         "#,
     )
